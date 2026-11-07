@@ -14,7 +14,7 @@
     "db:studio": "prisma studio",
     "db:local": "tsx scripts/local-db.ts",
     "db:seed": "tsx prisma/seed.ts",
-    "test:smoke": "node tests/smoke/1-auth.mjs && node tests/smoke/2-leads.mjs && node tests/smoke/3-batches-attendance.mjs && node tests/smoke/4-quizzes.mjs && node tests/smoke/5-emails.mjs && tsx tests/smoke/rank.check.mts"
+    "test:smoke": "node tests/smoke/1-auth.mjs && node tests/smoke/2-leads.mjs && node tests/smoke/3-batches-attendance.mjs && node tests/smoke/4-quizzes.mjs && node tests/smoke/5-emails.mjs && node tests/smoke/6-dashboard-documents.mjs && tsx tests/smoke/rank.check.mts"
   },
   "author": "",
   "license": "ISC",

@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Design tokens. Components use these names (bg-surface, text-muted...)
+   instead of raw colours, so the whole look can change in one place. */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Noto Sans", "Noto Sans Devanagari", sans-serif;
+
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-line: #e3e6ea;
+  --color-ink: #1d2630;
+  --color-muted: #5f6b78;
+  --color-faint: #8b95a1;
+
+  --color-brand: #2563eb;
+  --color-brand-strong: #1d4ed8;
+  --color-brand-soft: #e8efff;
+
+  --color-good: #15803d;
+  --color-good-soft: #e7f6ec;
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf3e2;
+  --color-bad: #c81e1e;
+  --color-bad-soft: #fdecec;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}

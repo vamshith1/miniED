@@ -12,7 +12,7 @@ run batches with attendance, and test students with timed quizzes and a leaderbo
 | Cache    | Redis (leaderboard, dashboard stats, rate limits) |
 | Queue    | BullMQ on Redis, or on Postgres without Redis (emails with retries) |
 | Email    | Nodemailer over SMTP; saved to `.outbox/` in dev  |
-| Frontend | React + Vite + Tailwind (Phase 7)                 |
+| Frontend | React 19, Vite, Tailwind 4, TanStack Query, Recharts |
 | Ops      | Docker Compose, GitHub Actions, HTTPS deploy      |
 
 ## Project layout
@@ -27,7 +27,7 @@ miniED/
 │       ├── lib/         shared helpers (prisma, cache, errors, dates, pagination)
 │       ├── middleware/  auth, error handling, rate limiting
 │       └── modules/     one folder per feature: routes, schemas, service
-└── client/              React app (coming later)
+└── client/              React app (Vite dev server proxies /api to :4000)
 ```
 
 ## Running locally
@@ -62,7 +62,15 @@ npm run dev
 
 Seed account emails and passwords are set in `.env.example` (`SEED_*`).
 
-Run the end-to-end smoke tests (177 checks) with `npm run test:smoke` while the API is running.
+Then start the web app in a third terminal and open http://localhost:5173:
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Run the end-to-end smoke tests (217 checks) with `npm run test:smoke` while the API is running.
 See [server/tests/smoke](server/tests/smoke/README.md).
 
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
@@ -177,6 +185,32 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 - Responses carry `X-Cache: HIT` or `MISS`. One cached copy is shared by every viewer, so it contains names only, never emails.
 - Ranking uses competition style: equal score and time share a rank (1, 2, 2, 4).
 
+### Dashboard and documents
+
+| Method | Path                              | Who                        | What                                    |
+| ------ | --------------------------------- | -------------------------- | --------------------------------------- |
+| GET    | `/api/dashboard/stats`            | Admin                      | Leads by stage/source/week, conversion rate, follow-ups due, attendance by batch, quiz and email numbers. Cached 60 s (`X-Cache`) |
+| POST   | `/api/documents`                  | any role                   | Multipart `file` + `kind` (`RESUME` default, or `OTHER`). A new resume replaces the old one |
+| GET    | `/api/documents?ownerId=`         | owner, admin, batch mentor | List a user's files (default: your own)  |
+| GET    | `/api/documents/:id/download`     | owner, admin, batch mentor | Download as an attachment               |
+| DELETE | `/api/documents/:id`              | owner, admin               | Delete the file and its record          |
+
+**Upload checks:** PDF, DOCX or DOC only, up to 5 MB, and up to 10 `OTHER` files per person. The file's first bytes must
+match its extension, so an `.exe` or image renamed to `.pdf` is rejected (a `.docx` must also be a real Word ZIP).
+Files are saved under random names in `server/uploads` (`UPLOAD_DIR`), never under the user's file name. Rejected
+uploads never touch the disk. Downloads are always sent as attachments with `Cache-Control: no-store`. Other users get
+`404`, as with batches.
+
+### Web app
+
+| Role    | Pages |
+| ------- | ----- |
+| Admin   | Dashboard (charts, each with a table view), Leads (search, filters, CSV import, lead detail with notes, timeline, stage and enrolment), Batches, Users, Emails |
+| Mentor  | My batches: roster with attendance % and resumes, daily attendance marking, quiz builder (draft → publish), attempts and leaderboards |
+| Student | Home (attendance, quizzes, batch leaderboard), timed quiz with server-side timer and auto-submit, result review, resume upload |
+
+The token is kept in `localStorage`. Pages check roles too, but the API is what enforces them.
+
 ### Emails (Admin only)
 
 | Method | Path                          | What                                                        |
@@ -215,7 +249,7 @@ on its timeline.
 - [x] **Phase 4, Conversion, batches and attendance:** enroll lead → student account, batches, daily attendance, attendance %
 - [x] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
 - [x] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
-- [ ] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI
+- [x] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI
 - [ ] **Phase 8, Production:** rate limiting, tests, Dockerized app, GitHub Actions CI/CD, deploy with HTTPS
 
 ## Database design notes

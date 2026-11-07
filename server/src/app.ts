@@ -10,6 +10,8 @@ import { batchesRouter } from "./modules/batches/batches.routes.js";
 import { attendanceRouter } from "./modules/attendance/attendance.routes.js";
 import { quizzesRouter } from "./modules/quizzes/quizzes.routes.js";
 import { emailsRouter } from "./modules/emails/emails.routes.js";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
+import { documentsRouter } from "./modules/documents/documents.routes.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
 // The app is built separately from index.ts so tests can import it
@@ -29,6 +31,8 @@ export function createApp() {
   app.use("/api/attendance", attendanceRouter);
   app.use("/api/quizzes", quizzesRouter);
   app.use("/api/emails", emailsRouter);
+  app.use("/api/dashboard", dashboardRouter);
+  app.use("/api/documents", documentsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

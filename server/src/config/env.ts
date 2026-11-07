@@ -12,6 +12,8 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   JWT_EXPIRES_IN: z.string().default("1d"),
   CLIENT_URL: z.string().default("http://localhost:5173"),
+  // Uploaded files (resumes). Relative paths are inside server/.
+  UPLOAD_DIR: z.string().default("uploads"),
 
   // ── Email ──
   // Without SMTP_URL, emails are written to server/.outbox/<id>.eml instead of sent.
