@@ -60,6 +60,11 @@ export async function initCache() {
     return driver.name;
   }
   const client = new Redis(env.REDIS_URL, { lazyConnect: true, connectTimeout: 2000, maxRetriesPerRequest: 1 });
+  // Without a listener, ioredis prints a stack trace for every failed connect.
+  // Only errors after a successful connection are worth logging.
+  client.on("error", (err) => {
+    if (redis) console.error("Redis error:", err.message);
+  });
   try {
     await client.connect();
     await client.ping();

@@ -52,7 +52,7 @@ export const changeStageSchema = z.object({
 export const convertLeadSchema = z.object({
   batchId: z.string().min(1),
   // Optional: the admin can set the first password. Otherwise one is
-  // generated and returned once (Phase 6 emails it in the welcome email).
+  // generated and sent to the student in the welcome email.
   password: z.string().min(8).max(72).optional(),
 });
 

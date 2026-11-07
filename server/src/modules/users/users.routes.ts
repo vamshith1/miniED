@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../lib/http-error.js";
 import { createUserSchema } from "../auth/auth.schemas.js";
 import { createUser, publicUserSelect } from "../auth/auth.service.js";
+import { enqueueEmail } from "../emails/email.queue.js";
 
 export const usersRouter = Router();
 
@@ -14,7 +15,8 @@ usersRouter.use(requireAuth, requireRole("ADMIN"));
 // POST /api/users: create an admin, mentor or student
 usersRouter.post("/", async (req, res) => {
   const user = await createUser(createUserSchema.parse(req.body));
-  res.status(201).json({ user });
+  const welcomeEmail = await enqueueEmail("welcome", user.email, { userId: user.id });
+  res.status(201).json({ user, welcomeEmail });
 });
 
 // GET /api/users?role=MENTOR&page=1&limit=20

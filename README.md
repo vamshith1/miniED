@@ -10,7 +10,8 @@ run batches with attendance, and test students with timed quizzes and a leaderbo
 | API      | Node.js, Express 5, TypeScript, Zod               |
 | Database | PostgreSQL 17 via Prisma ORM                      |
 | Cache    | Redis (leaderboard, dashboard stats, rate limits) |
-| Queue    | BullMQ on Redis (emails with retries)             |
+| Queue    | BullMQ on Redis, or on Postgres without Redis (emails with retries) |
+| Email    | Nodemailer over SMTP; saved to `.outbox/` in dev  |
 | Frontend | React + Vite + Tailwind (Phase 7)                 |
 | Ops      | Docker Compose, GitHub Actions, HTTPS deploy      |
 
@@ -47,8 +48,10 @@ Check it: `GET http://localhost:4000/api/health` should return `{"status":"ok","
 ### Without Docker
 
 If Docker isn't available, `npm run db:local` runs a real Postgres 17 server through the
-`embedded-postgres` package, using the same port and credentials as Docker. Keep that terminal open,
-then in a second terminal:
+`embedded-postgres` package, using the same port and credentials as Docker. The database is created as
+UTF-8 (Windows would default to WIN1252, which can't store Hindi names or emoji). If yours was made
+before this, it prints a warning: `npm run db:local -- --recreate` rebuilds it empty. Keep that terminal
+open, then in a second terminal:
 
 ```bash
 cd server
@@ -59,12 +62,17 @@ npm run dev
 
 Seed account emails and passwords are set in `.env.example` (`SEED_*`).
 
-Run the end-to-end smoke tests (151 checks) with `npm run test:smoke` while the API is running.
+Run the end-to-end smoke tests (177 checks) with `npm run test:smoke` while the API is running.
 See [server/tests/smoke](server/tests/smoke/README.md).
 
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
-`Cache: ... using in-memory cache` and caches in memory instead. Production should always use Redis,
-because the in-memory cache isn't shared between servers.
+`Cache: ... using in-memory cache` and caches in memory instead, and the email queue uses Postgres.
+Production should always use Redis, because the in-memory cache isn't shared between servers.
+
+**Emails in development.** Without `SMTP_URL`, nothing is sent: each email is saved as
+`server/.outbox/<id>.eml`, which opens in any mail app. `GET /api/health` shows which cache, queue and
+mail backend are in use. By default the API also runs the email worker. To run it separately (as in
+production), start the API with `RUN_WORKER=false` and run `npm run worker` in another terminal.
 
 ## API
 
@@ -107,7 +115,9 @@ Protected routes need `Authorization: Bearer <token>`.
 **Converting a lead** runs in one transaction: it creates the STUDENT account (from the lead's name, email and phone),
 places them in the batch, marks the lead `ENROLLED`, links the lead to the student and logs `CONVERTED` on the timeline.
 If any step fails, nothing changes. If two admins convert the same lead at once, only one succeeds. When no
-`password` is sent, a temporary one is generated and returned **once** in the response (Phase 6 emails it instead).
+`password` is sent, a temporary one is generated and sent in the student's welcome email; the response only says
+`welcomeEmail: {id, status}`. If the email couldn't even be queued (`status: "FAILED"`), the password is returned once
+in the response instead, so the admin can still hand it over.
 
 ### Batches
 
@@ -167,6 +177,36 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 - Responses carry `X-Cache: HIT` or `MISS`. One cached copy is shared by every viewer, so it contains names only, never emails.
 - Ranking uses competition style: equal score and time share a rank (1, 2, 2, 4).
 
+### Emails (Admin only)
+
+| Method | Path                          | What                                                        |
+| ------ | ----------------------------- | ----------------------------------------------------------- |
+| GET    | `/api/emails`                 | Email log, newest first. Query: `status`, `template`, `to`, `page`, `limit` |
+| GET    | `/api/emails/:id`             | One email: status, attempts, last error                     |
+| POST   | `/api/emails/follow-ups/run`  | Send today's follow-up reminders now (same as the daily job) |
+
+| Email            | Sent when                                         | To                    |
+| ---------------- | ------------------------------------------------- | --------------------- |
+| `welcome`        | Signup, admin creates a user, lead conversion     | The new user (with the temporary password after a conversion) |
+| `quiz-result`    | A student submits a quiz in time                  | The student: score, %, time and current rank |
+| `lead-follow-up` | Daily at 9:00 (`FOLLOW_UP_CRON`)                  | Each assignee, one email listing their leads due today or overdue |
+
+**How sending works**
+1. The action (signup, submit...) saves an `EmailLog` row and adds a job to the `email` queue. It doesn't wait
+   for the email, and a mail problem never fails the request.
+2. Jobs carry IDs, and the worker loads the data when it sends, so emails are always up to date.
+   The one exception is the temporary password, which is encrypted (AES-256-GCM) inside the job.
+3. A failed send is retried up to 5 times, waiting 30 s, 1 min, 2 min, 4 min (`EMAIL_MAX_ATTEMPTS`,
+   `EMAIL_RETRY_DELAY_MS`). The log shows `QUEUED` while retrying, then `SENT` or `FAILED` with the last error.
+   If retrying can't help (the user was deleted), it fails right away.
+4. The queue runs on Redis when it's reachable, otherwise on BullMQ's Postgres backend (a separate `bullmq`
+   schema in the same database). Either way, queued jobs survive a restart.
+
+**Follow-up reminders** cover open leads (not `ENROLLED` or `LOST`) with `nextFollowUpAt` today or earlier.
+Unassigned leads, or leads assigned to a deactivated user, go to every active admin. Running the scan again
+the same day skips anyone already reminded, unless their email failed. Each reminded lead gets `REMINDER_SENT`
+on its timeline.
+
 ## Roadmap
 
 - [x] **Phase 1, Foundation:** repo, server skeleton, Docker services, database schema
@@ -174,7 +214,7 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 - [x] **Phase 3, Leads:** CRUD, stages, notes, activity timeline, search/filter/pagination, CSV import
 - [x] **Phase 4, Conversion, batches and attendance:** enroll lead → student account, batches, daily attendance, attendance %
 - [x] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
-- [ ] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
+- [x] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
 - [ ] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI
 - [ ] **Phase 8, Production:** rate limiting, tests, Dockerized app, GitHub Actions CI/CD, deploy with HTTPS
 
@@ -186,4 +226,5 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 - **Attendance** is unique per `(studentId, date)`, so marking a day twice updates the record instead of duplicating it.
 - **QuizAttempt** is unique per `(quizId, studentId)` and stores `timeTakenMs` as the leaderboard tie-breaker.
 - **Option.isCorrect** is never sent to students before they submit.
+- **EmailLog** has one row per email, so admins can see what was sent, what's retrying and what failed.
 - Indexes follow real queries: leads by stage and date, follow-ups due, attendance by batch and date, attempts by quiz and score.

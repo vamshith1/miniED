@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 const B = process.env.API_URL ?? "http://localhost:4000/api";
 for (let i = 0; i < 60; i++) {
   try { const r = await fetch(B + "/health"); if (r.ok) break; } catch {}
@@ -18,6 +20,19 @@ function check(name, cond, extra) {
 const login = async (email, password) => (await call("POST", "/auth/login", { email, password })).body;
 const ymd = (offsetDays = 0) => { const d = new Date(); d.setDate(d.getDate() + offsetDays); return d.toLocaleDateString("en-CA"); };
 const run = Date.now();
+
+// The generated password arrives by email (Phase 6). Read it from the .eml file
+// the API writes to server/.outbox when SMTP_URL isn't set.
+async function emailedPassword(to) {
+  for (let i = 0; i < 60; i++) {
+    const e = (await call("GET", `/emails?to=${encodeURIComponent(to)}&template=welcome`, null, admin)).body.items[0];
+    if (e?.status === "SENT") {
+      const eml = (await readFile(join(import.meta.dirname, "..", "..", ".outbox", `${e.id}.eml`), "utf8")).replace(/=\r?\n/g, "");
+      return eml.match(/temporary password is: (\S+)/)?.[1];
+    }
+    await new Promise(r => setTimeout(r, 250));
+  }
+}
 
 const admin = (await login("admin@miniedcrm.test", "Admin@12345")).token;
 const m1 = await login("mentor@miniedcrm.test", "Mentor@12345");
@@ -52,8 +67,9 @@ async function newLead(tag, extra = {}) {
 const l1 = await newLead("stu1");
 r = await call("POST", `/leads/${l1.id}/convert`, { batchId: batchA }, admin);
 check("convert lead -> 201, student in batch A", r.status === 201 && r.body.student.role === "STUDENT" && r.body.student.batchId === batchA && r.body.student.email === l1.email, r);
-check("generated temporaryPassword returned once", typeof r.body.temporaryPassword === "string" && r.body.temporaryPassword.length >= 12, r.body);
-const stu1Pass = r.body.temporaryPassword;
+check("generated password goes in the welcome email, not the response", r.body.welcomeEmail?.status === "QUEUED" && !("temporaryPassword" in r.body), r.body);
+const stu1Pass = await emailedPassword(l1.email);
+check("temporary password read from the welcome email", typeof stu1Pass === "string" && stu1Pass.length >= 12, stu1Pass);
 const stu1Id = r.body.student?.id;
 r = await call("GET", `/leads/${l1.id}`, null, admin);
 check("lead now ENROLLED, linked, follow-up cleared", r.body.lead.stage === "ENROLLED" && r.body.lead.convertedUserId === stu1Id && r.body.lead.nextFollowUpAt === null, r.body.lead);

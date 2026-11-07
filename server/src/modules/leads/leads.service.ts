@@ -2,6 +2,7 @@ import { Prisma, type LeadStage } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../lib/http-error.js";
 import { paginated, toSkipTake } from "../../lib/pagination.js";
+import { endOfToday } from "../../lib/dates.js";
 import type { CreateLeadInput, ListLeadsQuery, UpdateLeadInput } from "./leads.schemas.js";
 
 const userBrief = { select: { id: true, name: true, email: true } } as const;
@@ -170,10 +171,4 @@ export async function deleteLead(id: string) {
   const lead = await getLeadOr404(id);
   if (lead.convertedUserId) throw new HttpError(409, "Enrolled leads can't be deleted; they're linked to a student");
   await prisma.lead.delete({ where: { id } }); // notes and activities cascade
-}
-
-function endOfToday() {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d;
 }

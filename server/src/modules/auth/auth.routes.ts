@@ -3,6 +3,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { loginSchema, signupSchema } from "./auth.schemas.js";
 import { createUser, issueSession, login, publicUserSelect } from "./auth.service.js";
+import { enqueueEmail } from "../emails/email.queue.js";
 
 export const authRouter = Router();
 
@@ -11,6 +12,7 @@ export const authRouter = Router();
 authRouter.post("/signup", async (req, res) => {
   const input = signupSchema.parse(req.body);
   const user = await createUser({ ...input, role: "STUDENT" });
+  await enqueueEmail("welcome", user.email, { userId: user.id });
   res.status(201).json(await issueSession(user.id));
 });
 

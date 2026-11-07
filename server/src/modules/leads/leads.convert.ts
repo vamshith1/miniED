@@ -4,6 +4,8 @@ import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../lib/http-error.js";
 import { hashPassword } from "../../lib/password.js";
 import { publicUserSelect } from "../auth/auth.service.js";
+import { seal } from "../../lib/secret-box.js";
+import { enqueueEmail } from "../emails/email.queue.js";
 
 // 12 random characters, e.g. "q7Vx-2Lp_9Ka"
 const generatePassword = () => randomBytes(9).toString("base64url");
@@ -15,6 +17,8 @@ const generatePassword = () => randomBytes(9).toString("base64url");
  *   3. mark the lead ENROLLED, link it to the student, stop reminders
  *   4. write a CONVERTED entry to the lead's timeline
  * All four happen in one transaction, so a failure leaves nothing half done.
+ * Then it queues the welcome email, which carries the temporary password
+ * when one was generated.
  */
 export async function convertLead(leadId: string, batchId: string, actorId: string, password?: string) {
   const [lead, batch] = await Promise.all([
@@ -62,11 +66,20 @@ export async function convertLead(leadId: string, batchId: string, actorId: stri
       return user;
     });
 
+    // After the commit: the email goes out only if the student really exists.
+    const welcomeEmail = await enqueueEmail("welcome", student.email, {
+      userId: student.id,
+      ...(password ? {} : { sealedPassword: seal(plainPassword) }),
+    });
+
     return {
       student,
       batch,
-      // Only returned when generated, and only this once. It isn't stored anywhere.
-      ...(password ? {} : { temporaryPassword: plainPassword }),
+      welcomeEmail,
+      // A generated password is normally only sent by email. If the email
+      // couldn't even be queued, it's returned here (once) so the admin
+      // can still hand it over.
+      ...(!password && welcomeEmail.status === "FAILED" ? { temporaryPassword: plainPassword } : {}),
     };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

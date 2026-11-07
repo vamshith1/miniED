@@ -4,6 +4,7 @@ import { HttpError } from "../../lib/http-error.js";
 import { cacheKeys, invalidate } from "../../lib/cache.js";
 import type { AuthUser } from "../../middleware/auth.js";
 import { getStudentQuiz } from "./quizzes.service.js";
+import { enqueueEmail } from "../emails/email.queue.js";
 import type { SubmitInput } from "./quizzes.schemas.js";
 
 // Extra time allowed after the timer ends, for slow networks.
@@ -124,7 +125,7 @@ export async function submitAttempt(quizId: string, input: SubmitInput, user: Au
 
   // New score, so cached rankings and stats are now stale.
   await invalidate(cacheKeys.quizLeaderboard(quizId), cacheKeys.batchLeaderboard(quiz.batchId), cacheKeys.dashboardStats());
-  // Phase 6: queue the "quiz result" email here.
+  await enqueueEmail("quiz-result", user.email, { attemptId: attempt.id });
 
   return getMyResult(quizId, user);
 }
