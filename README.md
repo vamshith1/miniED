@@ -59,6 +59,9 @@ npm run dev
 
 Seed account emails and passwords are set in `.env.example` (`SEED_*`).
 
+Run the end-to-end smoke tests (151 checks) with `npm run test:smoke` while the API is running.
+See [server/tests/smoke](server/tests/smoke/README.md).
+
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
 `Cache: ... using in-memory cache` and caches in memory instead. Production should always use Redis,
 because the in-memory cache isn't shared between servers.
