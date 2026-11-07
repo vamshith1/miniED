@@ -1,7 +1,15 @@
 import { Router } from "express";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { paginationQuery } from "../../lib/pagination.js";
-import { addNoteSchema, changeStageSchema, createLeadSchema, listLeadsQuery, updateLeadSchema } from "./leads.schemas.js";
+import {
+  addNoteSchema,
+  changeStageSchema,
+  convertLeadSchema,
+  createLeadSchema,
+  listLeadsQuery,
+  updateLeadSchema,
+} from "./leads.schemas.js";
+import { convertLead } from "./leads.convert.js";
 import * as leads from "./leads.service.js";
 import { csvUpload, importLeadsCsv } from "./leads.import.js";
 
@@ -40,6 +48,12 @@ leadsRouter.delete("/:id", async (req, res) => {
 leadsRouter.patch("/:id/stage", async (req, res) => {
   const { stage, note } = changeStageSchema.parse(req.body);
   res.json({ lead: await leads.changeStage(req.params.id, stage, req.user!.id, note) });
+});
+
+// POST /api/leads/:id/convert { batchId, password? }
+leadsRouter.post("/:id/convert", async (req, res) => {
+  const { batchId, password } = convertLeadSchema.parse(req.body);
+  res.status(201).json(await convertLead(req.params.id, batchId, req.user!.id, password));
 });
 
 leadsRouter.get("/:id/notes", async (req, res) => {

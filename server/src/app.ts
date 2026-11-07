@@ -6,6 +6,8 @@ import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { leadsRouter } from "./modules/leads/leads.routes.js";
+import { batchesRouter } from "./modules/batches/batches.routes.js";
+import { attendanceRouter } from "./modules/attendance/attendance.routes.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
 // The app is built separately from index.ts so tests can import it
@@ -21,7 +23,9 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/leads", leadsRouter);
-  // Next: batches, attendance, quizzes...
+  app.use("/api/batches", batchesRouter);
+  app.use("/api/attendance", attendanceRouter);
+  // Next: quizzes...
 
   app.use(notFound);
   app.use(errorHandler);

@@ -89,18 +89,52 @@ Protected routes need `Authorization: Bearer <token>`.
 | POST   | `/api/leads/:id/notes`     | `{body}`                                                    |
 | GET    | `/api/leads/:id/timeline`  | Activity log, newest first                                  |
 
+| POST   | `/api/leads/:id/convert`   | `{batchId, password?}`. Creates the student account and enrolls the lead (see below) |
+
 **Lead rules**
 - One lead per email (case-insensitive). Duplicates return `409` with `existingLeadId`.
 - `ENROLLED` can't be set through `/stage`; enrolling creates a student account, so it goes through `POST /api/leads/:id/convert` (Phase 4). Enrolled leads are locked.
 - Moving a lead to `LOST` clears its follow-up date so it stops getting reminders. Lost leads can be reopened.
 - CSV import accepts common header names (`E-mail`, `Course Interest`, `Follow Up`...), imports valid rows in one transaction, and reports each skipped row with its row number and reason.
 
+**Converting a lead** runs in one transaction: it creates the STUDENT account (from the lead's name, email and phone),
+places them in the batch, marks the lead `ENROLLED`, links the lead to the student and logs `CONVERTED` on the timeline.
+If any step fails, nothing changes. If two admins convert the same lead at once, only one succeeds. When no
+`password` is sent, a temporary one is generated and returned **once** in the response (Phase 6 emails it instead).
+
+### Batches
+
+| Method | Path                                   | Who                 | What                                  |
+| ------ | -------------------------------------- | ------------------- | ------------------------------------- |
+| GET    | `/api/batches`                         | any role            | Admin: all. Mentor: their batches. Student: their own |
+| POST   | `/api/batches`                         | Admin               | `{name, course, startDate, endDate?, mentorId?}` (dates `YYYY-MM-DD`) |
+| GET    | `/api/batches/:id`                     | any role, if theirs | One batch with mentor and student count |
+| PATCH  | `/api/batches/:id`                     | Admin               | Update; `endDate` / `mentorId` accept `null` |
+| GET    | `/api/batches/:id/students`            | Admin, its mentor   | Student roster                        |
+| POST   | `/api/batches/:id/students`            | Admin               | `{studentId}`: add or move a student  |
+| DELETE | `/api/batches/:id/students/:studentId` | Admin               | Remove a student from the batch       |
+
+A batch the user can't access returns `404`, not `403`, so batch IDs can't be discovered by guessing.
+
+### Attendance
+
+| Method | Path                                   | Who               | What                                          |
+| ------ | -------------------------------------- | ----------------- | --------------------------------------------- |
+| PUT    | `/api/batches/:id/attendance`          | Admin, its mentor | `{date, records: [{studentId, status}]}` marks a whole day |
+| GET    | `/api/batches/:id/attendance?date=`    | Admin, its mentor | Roster for that day; `status: null` = not marked |
+| GET    | `/api/batches/:id/attendance/summary`  | Admin, its mentor | Each student's %, plus the batch average       |
+| GET    | `/api/attendance/me`                   | Student           | Own counts, %, and the last 30 days            |
+
+- Status is `PRESENT`, `LATE` or `ABSENT`. **LATE counts as attended:** % = (present + late) / days marked.
+- Marking the same day again updates it (one record per student per day).
+- No future dates, no dates outside the batch's start/end, and every student must belong to the batch.
+
 ## Roadmap
 
 - [x] **Phase 1, Foundation:** repo, server skeleton, Docker services, database schema
 - [x] **Phase 2, Auth and RBAC:** signup/login, JWT, bcrypt, `requireRole()` middleware
 - [x] **Phase 3, Leads:** CRUD, stages, notes, activity timeline, search/filter/pagination, CSV import
-- [ ] **Phase 4, Conversion, batches and attendance:** enroll lead → student account, batches, daily attendance, attendance %
+- [x] **Phase 4, Conversion, batches and attendance:** enroll lead → student account, batches, daily attendance, attendance %
 - [ ] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
 - [ ] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
 - [ ] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI

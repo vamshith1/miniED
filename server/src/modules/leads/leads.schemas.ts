@@ -49,6 +49,13 @@ export const changeStageSchema = z.object({
   note: z.string().trim().max(2000).optional(), // optional reason, e.g. why it was lost
 });
 
+export const convertLeadSchema = z.object({
+  batchId: z.string().min(1),
+  // Optional: the admin can set the first password. Otherwise one is
+  // generated and returned once (Phase 6 emails it in the welcome email).
+  password: z.string().min(8).max(72).optional(),
+});
+
 export const addNoteSchema = z.object({
   body: z.string().trim().min(1).max(5000),
 });
