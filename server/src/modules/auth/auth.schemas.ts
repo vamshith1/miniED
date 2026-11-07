@@ -1,0 +1,26 @@
+import { z } from "zod";
+
+const email = z.email().trim().toLowerCase();
+// bcrypt only uses the first 72 bytes, so longer passwords are rejected
+// instead of being silently cut short.
+const password = z.string().min(8, "Password must be at least 8 characters").max(72);
+
+export const signupSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  email,
+  password,
+});
+
+export const loginSchema = z.object({
+  email,
+  password: z.string().min(1),
+});
+
+// Admin-only: create a user with any role.
+export const createUserSchema = signupSchema.extend({
+  role: z.enum(["ADMIN", "MENTOR", "STUDENT"]),
+  phone: z.string().trim().max(20).optional(),
+});
+
+export type SignupInput = z.infer<typeof signupSchema>;
+export type CreateUserInput = z.infer<typeof createUserSchema>;

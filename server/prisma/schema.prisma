@@ -1,0 +1,311 @@
+// MiniEdCRM database schema
+// Docs: https://www.prisma.io/docs/orm/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Users & roles ───────────────────────────────
+
+enum Role {
+  ADMIN
+  MENTOR
+  STUDENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STUDENT)
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Students belong to one batch. Null for admins and mentors.
+  batchId String?
+  batch   Batch?  @relation("BatchStudents", fields: [batchId], references: [id], onDelete: SetNull)
+
+  // The lead this student was converted from, if any.
+  convertedFromLead Lead? @relation("LeadConversion")
+
+  mentoredBatches  Batch[]        @relation("BatchMentor")
+  leadsCreated     Lead[]         @relation("LeadCreator")
+  leadsAssigned    Lead[]         @relation("LeadAssignee")
+  leadNotes        LeadNote[]
+  leadActivities   LeadActivity[]
+  attendance       Attendance[]   @relation("AttendanceStudent")
+  attendanceMarked Attendance[]   @relation("AttendanceMarker")
+  quizzesCreated   Quiz[]
+  quizAttempts     QuizAttempt[]
+  documents        Document[]
+
+  @@index([role])
+  @@index([batchId])
+}
+
+// ─────────────────────────────── Leads pipeline ──────────────────────────────
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  INTERESTED
+  ENROLLED
+  LOST
+}
+
+model Lead {
+  id             String    @id @default(cuid())
+  name           String
+  email          String
+  phone          String?
+  source         String? // e.g. "Website", "Referral", "CSV import"
+  courseInterest String?
+  stage          LeadStage @default(NEW)
+  nextFollowUpAt DateTime? // drives the daily follow-up reminder email
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  createdById  String
+  createdBy    User    @relation("LeadCreator", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  // Set when the lead is marked ENROLLED and a student account is created.
+  convertedUserId String? @unique
+  convertedUser   User?   @relation("LeadConversion", fields: [convertedUserId], references: [id], onDelete: SetNull)
+
+  notes      LeadNote[]
+  activities LeadActivity[]
+
+  // Indexes match the list page: filter by stage, sort by newest, search by email,
+  // and the reminder job's "follow-ups due today" query.
+  @@index([stage, createdAt])
+  @@index([email])
+  @@index([assignedToId])
+  @@index([nextFollowUpAt])
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+
+  leadId   String
+  lead     Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  @@index([leadId, createdAt])
+}
+
+enum ActivityType {
+  CREATED
+  IMPORTED
+  STAGE_CHANGED
+  NOTE_ADDED
+  ASSIGNED
+  CONVERTED
+  REMINDER_SENT
+}
+
+// Append-only log that powers the lead's activity timeline.
+model LeadActivity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  meta      Json? // e.g. { "from": "NEW", "to": "CONTACTED" }
+  createdAt DateTime     @default(now())
+
+  leadId  String
+  lead    Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  actorId String? // null when the system did it (e.g. a scheduled job)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+}
+
+// ─────────────────────────────── Batches & attendance ────────────────────────
+
+model Batch {
+  id        String    @id @default(cuid())
+  name      String    @unique // e.g. "FS-Web-Jan-2027"
+  course    String
+  startDate DateTime  @db.Date
+  endDate   DateTime? @db.Date
+  createdAt DateTime  @default(now())
+
+  mentorId String?
+  mentor   User?   @relation("BatchMentor", fields: [mentorId], references: [id], onDelete: SetNull)
+
+  students   User[]       @relation("BatchStudents")
+  attendance Attendance[]
+  quizzes    Quiz[]
+
+  @@index([mentorId])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  date      DateTime         @db.Date
+  status    AttendanceStatus
+  createdAt DateTime         @default(now())
+
+  batchId    String
+  batch      Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    User   @relation("AttendanceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  markedById String
+  markedBy   User   @relation("AttendanceMarker", fields: [markedById], references: [id])
+
+  // One record per student per day. Re-marking updates it instead of duplicating.
+  @@unique([studentId, date])
+  @@index([batchId, date])
+}
+
+// ─────────────────────────────── Quizzes ─────────────────────────────────────
+
+model Quiz {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  durationSeconds Int // time limit, enforced on the server at submit
+  isPublished     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  batchId     String
+  batch       Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@index([batchId, isPublished])
+}
+
+model Question {
+  id       String @id @default(cuid())
+  text     String
+  points   Int    @default(1)
+  position Int // display order within the quiz
+
+  quizId  String
+  quiz    Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options Option[]
+  answers AttemptAnswer[]
+
+  @@index([quizId, position])
+}
+
+model Option {
+  id        String  @id @default(cuid())
+  text      String
+  isCorrect Boolean @default(false) // never sent to students before submission
+
+  questionId String
+  question   Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers    AttemptAnswer[]
+
+  @@index([questionId])
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+model QuizAttempt {
+  id          String        @id @default(cuid())
+  status      AttemptStatus @default(IN_PROGRESS)
+  startedAt   DateTime      @default(now())
+  submittedAt DateTime?
+  score       Int           @default(0)
+  maxScore    Int           @default(0)
+  timeTakenMs Int? // tie-breaker on the leaderboard
+
+  quizId    String
+  quiz      Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  answers AttemptAnswer[]
+
+  // One attempt per student per quiz.
+  @@unique([quizId, studentId])
+  @@index([quizId, score])
+}
+
+model AttemptAnswer {
+  id        String  @id @default(cuid())
+  isCorrect Boolean
+
+  attemptId  String
+  attempt    QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionId   String? // null if the student skipped the question
+  option     Option?     @relation(fields: [optionId], references: [id], onDelete: SetNull)
+
+  @@unique([attemptId, questionId])
+}
+
+// ─────────────────────────────── Files ───────────────────────────────────────
+
+enum DocumentKind {
+  RESUME
+  OTHER
+}
+
+model Document {
+  id           String       @id @default(cuid())
+  kind         DocumentKind @default(RESUME)
+  originalName String
+  storedName   String       @unique // random name on disk, never the user's filename
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime     @default(now())
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, kind])
+}
+
+// ─────────────────────────────── Email log ───────────────────────────────────
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+// One row per queued email, so admins can see what was sent and what failed
+// after all retries.
+model EmailLog {
+  id        String      @id @default(cuid())
+  to        String
+  template  String // "welcome" | "quiz-result" | "lead-follow-up"
+  status    EmailStatus @default(QUEUED)
+  attempts  Int         @default(0)
+  lastError String?
+  jobId     String?
+  createdAt DateTime    @default(now())
+  sentAt    DateTime?
+
+  @@index([status, createdAt])
+}

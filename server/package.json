@@ -1,0 +1,46 @@
+{
+  "name": "miniedcrm-server",
+  "version": "1.0.0",
+  "description": "MiniEdCRM API",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:local": "tsx scripts/local-db.ts",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.6",
+    "embedded-postgres": "^17.11.0-beta.19",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "esbuild@0.28.2": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@embedded-postgres/windows-x64@17.11.0-beta.19": true
+  }
+}
