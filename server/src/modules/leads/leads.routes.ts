@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
+import { limits } from "../../middleware/rate-limit.js";
 import { paginationQuery } from "../../lib/pagination.js";
 import {
   addNoteSchema,
@@ -28,7 +29,7 @@ leadsRouter.post("/", async (req, res) => {
 
 // Must be registered before "/:id" so "import" isn't treated as an id.
 // multipart/form-data with a "file" field
-leadsRouter.post("/import", csvUpload, async (req, res) => {
+leadsRouter.post("/import", limits.csvImport, csvUpload, async (req, res) => {
   res.json(await importLeadsCsv(req.file, req.user!.id));
 });
 

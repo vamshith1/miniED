@@ -30,6 +30,20 @@ miniED/
 └── client/              React app (Vite dev server proxies /api to :4000)
 ```
 
+## Deploying
+
+Free hosting (Render + Neon + Brevo, $0) is described step by step in [DEPLOY.md](DEPLOY.md). In production one
+Node process serves the API, the built web app and the email worker:
+
+```bash
+npm run build      # from the repo root: builds client/ and server/
+npm start          # applies database migrations, then starts the server
+```
+
+Production settings (see `server/.env.example`): `NODE_ENV=production`, `CLIENT_URL` (https), `SMTP_URL`,
+`TRUST_PROXY=1` behind a proxy, `CRON_SECRET` for the GitHub Action that sends the 9:00 reminders, and optionally
+`BCRYPT_ROUNDS=10` on slow free CPUs.
+
 ## Running locally
 
 Requires Node 20+ and Docker Desktop.
@@ -70,7 +84,7 @@ npm install
 npm run dev
 ```
 
-Run the end-to-end smoke tests (247 checks) with `npm run test:smoke` while the API is running.
+Run the end-to-end smoke tests (261 checks) with `npm run test:smoke` while the API is running.
 See [server/tests/smoke](server/tests/smoke/README.md).
 
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
@@ -85,7 +99,29 @@ production), start the API with `RUN_WORKER=false` and run `npm run worker` in a
 ## API
 
 All responses are JSON. Errors always look like `{ "error": string, "details"?: object }`.
-Protected routes need `Authorization: Bearer <token>`.
+
+**Signing in.** Login, signup and password changes return `{token, user}` and also set an `mecrm_session` cookie
+(httpOnly, `SameSite=Lax`, `Secure` in production, path `/api`). The web app uses only the cookie, so page scripts
+never see the token. API clients can send `Authorization: Bearer <token>` instead. Requests that use the cookie and
+change data must also send `X-Requested-With: miniedcrm`, which other websites can't add (CSRF protection).
+`POST /api/auth/logout` clears the cookie.
+
+**Rate limits** (`429` with `Retry-After` and `RateLimit-*` headers; Redis-backed when Redis is connected, else in memory):
+
+| Limit | Allowed |
+| ----- | ------- |
+| Any API request | 300 per minute per IP (`/api/health` is exempt) |
+| Login | 10 per 15 min per IP + email, and 50 per 15 min per IP |
+| Signup | 10 per hour per IP |
+| Forgot / reset password | 10 per hour per IP |
+| Change password | 10 per 15 min per user |
+| File uploads / CSV imports | 30 / 20 per hour per user |
+
+In development, requests from your own machine skip the limits; set `RATE_LIMIT_LOCAL=true` to test them.
+Behind a proxy (Render, Caddy), set `TRUST_PROXY=1` or every visitor shares the proxy's IP and its limits.
+
+**Production checks.** With `NODE_ENV=production` the API refuses to start without `SMTP_URL`, with a non-https
+`CLIENT_URL`, or with the example `JWT_SECRET`, and lists what to fix.
 
 | Method | Path                    | Who     | What                                         |
 | ------ | ----------------------- | ------- | -------------------------------------------- |
@@ -209,9 +245,10 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 
 **Upload checks:** PDF, DOCX or DOC only, up to 5 MB, and up to 10 `OTHER` files per person. The file's first bytes must
 match its extension, so an `.exe` or image renamed to `.pdf` is rejected (a `.docx` must also be a real Word ZIP).
-Files are saved under random names in `server/uploads` (`UPLOAD_DIR`), never under the user's file name. Rejected
-uploads never touch the disk. Downloads are always sent as attachments with `Cache-Control: no-store`. Other users get
-`404`, as with batches.
+Files are stored in the database by default (`FILE_STORAGE=database`, a separate `DocumentBlob` table so lists never
+load file contents), which works on free hosts whose disk is wiped on every deploy. `FILE_STORAGE=disk` keeps them in
+`server/uploads` (`UPLOAD_DIR`) instead, under random names, never the user's file name. Rejected uploads are never
+stored. Downloads are always sent as attachments with `Cache-Control: no-store`. Other users get `404`, as with batches.
 
 ### Web app
 
@@ -262,7 +299,8 @@ on its timeline.
 - [x] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
 - [x] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
 - [x] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI
-- [ ] **Phase 8, Production:** rate limiting, tests, Dockerized app, GitHub Actions CI/CD, deploy with HTTPS
+- [x] **Change and reset password** by email, signing out other sessions
+- [ ] **Phase 8, Production:** rate limiting ✓, cookie sessions ✓, free-hosting build ✓ (Render + Neon), automated tests, GitHub Actions CI, deploy
 
 ## Database design notes
 

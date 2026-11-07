@@ -296,7 +296,7 @@ model Document {
   id           String       @id @default(cuid())
   kind         DocumentKind @default(RESUME)
   originalName String
-  storedName   String       @unique // random name on disk, never the user's filename
+  storedName   String       @unique // random id (and file name on disk with FILE_STORAGE=disk), never the user's name
   mimeType     String
   sizeBytes    Int
   createdAt    DateTime     @default(now())
@@ -304,7 +304,17 @@ model Document {
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
+  // The file itself when FILE_STORAGE=database (the default). Kept in its own
+  // table so listing documents never loads file contents.
+  blob DocumentBlob?
+
   @@index([ownerId, kind])
+}
+
+model DocumentBlob {
+  documentId String   @id
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  data       Bytes
 }
 
 // ─────────────────────────────── Email log ───────────────────────────────────

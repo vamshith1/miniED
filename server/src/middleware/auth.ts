@@ -3,6 +3,7 @@ import type { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { verifyToken } from "../lib/jwt.js";
 import { HttpError } from "../lib/http-error.js";
+import { CSRF_HEADER, CSRF_VALUE, readSessionCookie } from "../lib/session-cookie.js";
 
 export type AuthUser = { id: string; name: string; email: string; role: Role; batchId: string | null };
 
@@ -14,17 +15,30 @@ declare global {
   }
 }
 
-// Reads "Authorization: Bearer <token>", verifies it and attaches req.user.
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+// Reads the session from "Authorization: Bearer <token>" (API clients) or the
+// session cookie (the web app), verifies it and attaches req.user.
 // The user is reloaded from the database so a deactivated account or a
 // changed role takes effect immediately, not only when the token expires.
 export const requireAuth: RequestHandler = async (req, _res, next) => {
   const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) throw new HttpError(401, "Missing or malformed Authorization header");
+  let token: string | null = null;
+  if (header?.startsWith("Bearer ")) {
+    token = header.slice(7);
+  } else {
+    token = readSessionCookie(req);
+    // Cookies are sent automatically, so writes must prove they came from our own pages.
+    if (token && !SAFE_METHODS.has(req.method) && req.headers[CSRF_HEADER] !== CSRF_VALUE) {
+      throw new HttpError(403, "Request blocked: missing X-Requested-With header");
+    }
+  }
+  if (!token) throw new HttpError(401, "Not signed in");
 
   let userId: string;
   let version: number;
   try {
-    const payload = verifyToken(header.slice(7));
+    const payload = verifyToken(token);
     userId = payload.sub;
     version = payload.v ?? 0; // tokens issued before tokenVersion existed count as version 0
   } catch {

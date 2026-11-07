@@ -18,4 +18,7 @@ The email checks (`3-batches-attendance`, `5-emails`) read the `.eml` files the 
 `server/.outbox`, so run the API without `SMTP_URL`. To also watch a failing email go through every
 retry to `FAILED`, start the API with short retries: `EMAIL_RETRY_DELAY_MS=300 EMAIL_MAX_ATTEMPTS=3 npm run dev`.
 
+`8-security` skips its rate-limit checks unless the API runs with `RATE_LIMIT_LOCAL=true`, because in development
+requests from your own machine aren't rate limited.
+
 These get replaced by a proper Vitest + Supertest suite in Phase 8.

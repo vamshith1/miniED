@@ -1,8 +1,6 @@
 // Thin wrapper around fetch for the MiniEdCRM API.
 // Every API error has the shape { error, details? }, which becomes an ApiError.
 
-const TOKEN_KEY = "miniedcrm.token";
-
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -21,32 +19,14 @@ export class ApiError extends Error {
   }
 }
 
-export const tokenStore = {
-  get: () => {
-    try {
-      return localStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
-    }
-  },
-  set: (t: string | null) => {
-    try {
-      if (t) localStorage.setItem(TOKEN_KEY, t);
-      else localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* private mode: the session just won't survive a reload */
-    }
-  },
-};
-
 // Called when the API says the session is no longer valid.
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn: () => void) => (onUnauthorized = fn);
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
-  const token = tokenStore.get();
-  if (token) headers.authorization = `Bearer ${token}`;
+  // The session cookie is sent automatically (same origin). This header tells
+  // the server the request came from our own pages (CSRF protection).
+  const headers: Record<string, string> = { "x-requested-with": "miniedcrm" };
   const isForm = body instanceof FormData;
   if (body !== undefined && !isForm) headers["content-type"] = "application/json";
 
@@ -64,7 +44,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401 && token) onUnauthorized();
+    // The session ended (expired, password changed elsewhere, account deactivated).
+    // Sign-in mistakes also return 401 but aren't a session ending.
+    if (res.status === 401 && !path.startsWith("/auth/login")) onUnauthorized();
     throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`, data?.details);
   }
   return data as T;
@@ -88,11 +70,11 @@ export function qs(params: Record<string, string | number | boolean | undefined 
 }
 
 /**
- * Downloads a protected file. A plain <a href> can't send the Bearer token,
- * so the file is fetched, then handed to the browser to save.
+ * Downloads a protected file: fetched with the session cookie, then handed
+ * to the browser to save under the file's real name.
  */
 export async function downloadFile(path: string, fallbackName: string) {
-  const res = await fetch(`/api${path}`, { headers: { authorization: `Bearer ${tokenStore.get()}` } });
+  const res = await fetch(`/api${path}`);
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     throw new ApiError(res.status, data?.error ?? "Download failed");

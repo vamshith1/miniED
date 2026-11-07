@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import multer from "multer";
 import type { DocumentKind } from "@prisma/client";
@@ -87,28 +87,42 @@ export async function saveDocument(file: Express.Multer.File | undefined, kind: 
     if (count >= MAX_OTHER_PER_USER) throw new HttpError(409, `You can keep up to ${MAX_OTHER_PER_USER} other documents. Delete one first.`);
   }
 
-  // Random name on disk, never the user's: no path tricks, no clashes, nothing to guess.
+  // Random id, never the user's file name: no path tricks, no clashes, nothing to guess.
   const storedName = `${randomUUID()}${type.ext}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(join(UPLOAD_DIR, storedName), file.buffer);
+  const inDatabase = env.FILE_STORAGE === "database";
+  if (!inDatabase) {
+    await mkdir(UPLOAD_DIR, { recursive: true });
+    await writeFile(join(UPLOAD_DIR, storedName), file.buffer);
+  }
 
   try {
     const previous = kind === "RESUME" ? await prisma.document.findMany({ where: { ownerId: user.id, kind: "RESUME" } }) : [];
     const document = await prisma.$transaction(async (tx) => {
       if (previous.length) await tx.document.deleteMany({ where: { id: { in: previous.map((p) => p.id) } } });
       return tx.document.create({
-        data: { kind, originalName: cleanName(file.originalname), storedName, mimeType: type.mime, sizeBytes: file.size, ownerId: user.id },
+        data: {
+          kind,
+          originalName: cleanName(file.originalname),
+          storedName,
+          mimeType: type.mime,
+          sizeBytes: file.size,
+          ownerId: user.id,
+          // Saved in the same transaction as the record, so there's never one without the other.
+          ...(inDatabase && { blob: { create: { data: new Uint8Array(file.buffer) } } }),
+        },
         select: documentSelect,
       });
     });
     await Promise.all(previous.map((p) => removeFile(p.storedName)));
     return { document, replaced: previous.length > 0 };
   } catch (err) {
-    await removeFile(storedName); // the row wasn't saved, so don't leave the file behind
+    if (!inDatabase) await removeFile(storedName); // the row wasn't saved, so don't leave the file behind
     throw err;
   }
 }
 
+// Files on disk: uploads made with FILE_STORAGE=disk (or before database storage existed).
+// Deleting a database-stored document removes its blob by cascade, and this finds nothing.
 async function removeFile(storedName: string) {
   await unlink(join(UPLOAD_DIR, storedName)).catch((err) => {
     if (err.code !== "ENOENT") console.error("Could not delete upload", storedName, err);
@@ -121,10 +135,16 @@ export async function listDocuments(ownerId: string, user: AuthUser) {
 }
 
 export async function getDocumentForDownload(id: string, user: AuthUser) {
-  const doc = await prisma.document.findUnique({ where: { id } });
+  const doc = await prisma.document.findUnique({ where: { id }, include: { blob: true } });
   if (!doc) throw new HttpError(404, "Document not found");
   await assertCanView(doc.ownerId, user);
-  return { ...doc, path: join(UPLOAD_DIR, doc.storedName) };
+  // Stored in the database, or (older / FILE_STORAGE=disk uploads) on disk.
+  const data = doc.blob
+    ? Buffer.from(doc.blob.data)
+    : await readFile(join(UPLOAD_DIR, doc.storedName)).catch(() => {
+        throw new HttpError(404, "File is missing on the server");
+      });
+  return { originalName: doc.originalName, mimeType: doc.mimeType, data };
 }
 
 // The owner or an admin can delete. Mentors can only view.

@@ -1,37 +1,53 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, api, setUnauthorizedHandler, tokenStore } from "./api";
+import { ApiError, api, setUnauthorizedHandler } from "./api";
 import type { User } from "./types";
 
+/**
+ * The session is an httpOnly cookie set by the server: this code never sees
+ * the token. It only keeps track of who is signed in.
+ */
 interface AuthState {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   signup: (input: { name: string; email: string; password: string }) => Promise<User>;
   logout: () => void;
-  // After a password change: the server issues a new token for this device.
-  replaceSession: (r: { token: string; user: User }) => void;
+  // After a password change the server sets a fresh cookie; this updates the user.
+  replaceSession: (r: { user: User }) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
+// Sessions used to be stored in localStorage. Remove any leftover token.
+try {
+  localStorage.removeItem("miniedcrm.token");
+} catch {
+  /* storage unavailable */
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(() => !!tokenStore.get());
+  const [loading, setLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    tokenStore.set(null);
+  // Forget the signed-in user locally (the server already rejected the session,
+  // or logout just cleared it).
+  const forget = useCallback(() => {
     setUser(null);
     queryClient.clear(); // never show the previous user's data to the next one
   }, [queryClient]);
 
-  // A saved token is checked on load. Only a 401 (expired or revoked) signs
-  // the user out. If the server is unreachable or restarting, keep the token
-  // and try again every 2 seconds instead.
+  const logout = useCallback(() => {
+    api.post("/auth/logout").catch(() => {}); // clears the cookie; nothing to do if it fails
+    forget();
+  }, [forget]);
+
+  // On load, ask the server who we are. A 401 means signed out. If the server
+  // is unreachable or restarting, keep trying every 2 seconds instead of
+  // treating that as signed out.
   useEffect(() => {
-    setUnauthorizedHandler(logout);
-    if (!tokenStore.get()) return;
+    setUnauthorizedHandler(forget);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const check = () =>
@@ -44,24 +60,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .catch((err) => {
           if (cancelled) return;
-          if (err instanceof ApiError && err.status === 401) {
-            logout();
-            setLoading(false);
-          } else {
-            timer = setTimeout(check, 2000);
-          }
+          if (err instanceof ApiError && err.status === 401) setLoading(false);
+          else timer = setTimeout(check, 2000);
         });
     check();
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [logout]);
+  }, [forget]);
 
   const startSession = useCallback(
-    (r: { token: string; user: User }) => {
+    (r: { user: User }) => {
       queryClient.clear();
-      tokenStore.set(r.token);
       setUser(r.user);
       return r.user;
     },
@@ -73,12 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       logout,
-      replaceSession: (r) => {
-        tokenStore.set(r.token);
-        setUser(r.user);
-      },
-      login: (email, password) => api.post<{ token: string; user: User }>("/auth/login", { email, password }).then(startSession),
-      signup: (input) => api.post<{ token: string; user: User }>("/auth/signup", input).then(startSession),
+      replaceSession: (r) => setUser(r.user),
+      login: (email, password) => api.post<{ user: User }>("/auth/login", { email, password }).then(startSession),
+      signup: (input) => api.post<{ user: User }>("/auth/signup", input).then(startSession),
     }),
     [user, loading, logout, startSession],
   );

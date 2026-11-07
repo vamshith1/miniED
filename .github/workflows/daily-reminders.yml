@@ -1,0 +1,34 @@
+# Wakes the deployed app at 9:00 India time and sends the day's follow-up reminders.
+# On Render's free plan the app sleeps when idle, so its own 9:00 schedule may not fire.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   APP_URL      e.g. https://miniedcrm.onrender.com
+#   CRON_SECRET  the same value as the app's CRON_SECRET setting
+name: Daily follow-up reminders
+
+on:
+  schedule:
+    - cron: "30 3 * * *" # 03:30 UTC = 09:00 IST
+  workflow_dispatch: # also allows a manual run from the Actions tab
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Send today's reminders
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL or CRON_SECRET isn't set; skipping."
+            exit 0
+          fi
+          # A sleeping free app takes about a minute to wake up.
+          for i in $(seq 1 18); do
+            if curl -fsS --max-time 20 "$APP_URL/api/health" > /dev/null; then break; fi
+            echo "Waiting for the app to wake up ($i)..."
+            sleep 10
+          done
+          curl -fsS --max-time 60 -X POST "$APP_URL/api/cron/follow-ups" -H "X-Cron-Secret: $CRON_SECRET"

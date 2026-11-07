@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
+import { limits } from "../../middleware/rate-limit.js";
 import { deleteDocument, documentUpload, getDocumentForDownload, listDocuments, saveDocument } from "./documents.service.js";
 
 export const documentsRouter = Router();
 documentsRouter.use(requireAuth);
 
 // POST /api/documents  multipart: file=<pdf|docx|doc>, kind=RESUME|OTHER (default RESUME)
-documentsRouter.post("/", documentUpload, async (req, res) => {
+documentsRouter.post("/", limits.upload, documentUpload, async (req, res) => {
   const { kind } = z.object({ kind: z.enum(["RESUME", "OTHER"]).default("RESUME") }).parse(req.body ?? {});
   const result = await saveDocument(req.file, kind, req.user!);
   res.status(201).json(result);
@@ -28,9 +29,7 @@ documentsRouter.get("/:id/download", async (req, res) => {
   const ascii = doc.originalName.replace(/[^\x20-\x7e]/g, "_");
   res.setHeader("Content-Disposition", `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.originalName)}`);
   res.setHeader("Cache-Control", "private, no-store");
-  res.sendFile(doc.path, (err) => {
-    if (err && !res.headersSent) res.status(404).json({ error: "File is missing on the server" });
-  });
+  res.send(doc.data);
 });
 
 documentsRouter.delete("/:id", async (req, res) => {
