@@ -74,11 +74,32 @@ Protected routes need `Authorization: Bearer <token>`.
 | GET    | `/api/users?role=&page=&limit=` | Admin | List users (paginated)              |
 | PATCH  | `/api/users/:id/status` | Admin   | `{isActive}` to deactivate or reactivate     |
 
+### Leads (Admin only)
+
+| Method | Path                       | What                                                        |
+| ------ | -------------------------- | ----------------------------------------------------------- |
+| GET    | `/api/leads`               | List. Query: `search`, `stage`, `source`, `assignedToId`, `followUpDue=true`, `sort=newest\|oldest\|name\|followUp`, `page`, `limit` |
+| POST   | `/api/leads`               | Create `{name, email, phone?, source?, courseInterest?, nextFollowUpAt?, assignedToId?}` |
+| POST   | `/api/leads/import`        | CSV upload (form field `file`, max 2 MB / 5000 rows). See [samples/leads-sample.csv](server/samples/leads-sample.csv) |
+| GET    | `/api/leads/:id`           | One lead                                                    |
+| PATCH  | `/api/leads/:id`           | Update fields; `assignedToId` / `nextFollowUpAt` accept `null` |
+| DELETE | `/api/leads/:id`           | Delete (not allowed once enrolled)                          |
+| PATCH  | `/api/leads/:id/stage`     | `{stage, note?}`. Logs to the timeline                      |
+| GET    | `/api/leads/:id/notes`     | Notes, newest first                                         |
+| POST   | `/api/leads/:id/notes`     | `{body}`                                                    |
+| GET    | `/api/leads/:id/timeline`  | Activity log, newest first                                  |
+
+**Lead rules**
+- One lead per email (case-insensitive). Duplicates return `409` with `existingLeadId`.
+- `ENROLLED` can't be set through `/stage`; enrolling creates a student account, so it goes through `POST /api/leads/:id/convert` (Phase 4). Enrolled leads are locked.
+- Moving a lead to `LOST` clears its follow-up date so it stops getting reminders. Lost leads can be reopened.
+- CSV import accepts common header names (`E-mail`, `Course Interest`, `Follow Up`...), imports valid rows in one transaction, and reports each skipped row with its row number and reason.
+
 ## Roadmap
 
 - [x] **Phase 1, Foundation:** repo, server skeleton, Docker services, database schema
 - [x] **Phase 2, Auth and RBAC:** signup/login, JWT, bcrypt, `requireRole()` middleware
-- [ ] **Phase 3, Leads:** CRUD, stages, notes, activity timeline, search/filter/pagination, CSV import
+- [x] **Phase 3, Leads:** CRUD, stages, notes, activity timeline, search/filter/pagination, CSV import
 - [ ] **Phase 4, Conversion, batches and attendance:** enroll lead → student account, batches, daily attendance, attendance %
 - [ ] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
 - [ ] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
