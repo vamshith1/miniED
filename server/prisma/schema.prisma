@@ -215,12 +215,13 @@ model Option {
   id        String  @id @default(cuid())
   text      String
   isCorrect Boolean @default(false) // never sent to students before submission
+  position  Int     @default(0) // display order within the question
 
   questionId String
   question   Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
   answers    AttemptAnswer[]
 
-  @@index([questionId])
+  @@index([questionId, position])
 }
 
 enum AttemptStatus {
@@ -247,7 +248,8 @@ model QuizAttempt {
 
   // One attempt per student per quiz.
   @@unique([quizId, studentId])
-  @@index([quizId, score])
+  // Leaderboard query: submitted attempts for a quiz, best score first.
+  @@index([quizId, status, score(sort: Desc)])
 }
 
 model AttemptAnswer {

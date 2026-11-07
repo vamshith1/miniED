@@ -1,6 +1,9 @@
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { prisma } from "./lib/prisma.js";
+import { initCache, redis } from "./lib/cache.js";
+
+await initCache();
 
 const server = createApp().listen(env.PORT, () => {
   console.log(`MiniEdCRM API running on http://localhost:${env.PORT}`);
@@ -10,6 +13,7 @@ const server = createApp().listen(env.PORT, () => {
 async function shutdown() {
   server.close();
   await prisma.$disconnect();
+  redis?.disconnect();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

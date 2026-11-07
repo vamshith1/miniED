@@ -4,6 +4,8 @@ import { addStudentSchema, createBatchSchema, updateBatchSchema } from "./batche
 import * as batches from "./batches.service.js";
 import { param } from "../../lib/params.js";
 import { batchAttendanceRouter } from "../attendance/attendance.routes.js";
+import { getBatchLeaderboard } from "../quizzes/leaderboard.js";
+import { sendCached } from "../quizzes/quizzes.routes.js";
 
 export const batchesRouter = Router();
 batchesRouter.use(requireAuth);
@@ -39,6 +41,11 @@ batchesRouter.post("/:id/students", requireRole("ADMIN"), async (req, res) => {
 batchesRouter.delete("/:id/students/:studentId", requireRole("ADMIN"), async (req, res) => {
   await batches.removeStudent(param(req, "id"), param(req, "studentId"));
   res.status(204).end();
+});
+
+// Total quiz scores across the batch. Anyone who can see the batch can see this.
+batchesRouter.get("/:id/leaderboard", async (req, res) => {
+  sendCached(res, await getBatchLeaderboard(param(req, "id"), req.user!));
 });
 
 // /api/batches/:id/attendance...

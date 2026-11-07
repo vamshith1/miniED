@@ -23,9 +23,9 @@ miniED/
 │   ├── prisma/          schema.prisma and migrations
 │   └── src/
 │       ├── config/      env validation
-│       ├── lib/         shared helpers (prisma client, errors)
+│       ├── lib/         shared helpers (prisma, cache, errors, dates, pagination)
 │       ├── middleware/  auth, error handling, rate limiting
-│       └── routes/      one router per module
+│       └── modules/     one folder per feature: routes, schemas, service
 └── client/              React app (coming later)
 ```
 
@@ -58,6 +58,10 @@ npm run dev
 ```
 
 Seed account emails and passwords are set in `.env.example` (`SEED_*`).
+
+Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
+`Cache: ... using in-memory cache` and caches in memory instead. Production should always use Redis,
+because the in-memory cache isn't shared between servers.
 
 ## API
 
@@ -129,13 +133,44 @@ A batch the user can't access returns `404`, not `403`, so batch IDs can't be di
 - Marking the same day again updates it (one record per student per day).
 - No future dates, no dates outside the batch's start/end, and every student must belong to the batch.
 
+### Quizzes
+
+| Method | Path                            | Who                     | What                                        |
+| ------ | ------------------------------- | ----------------------- | ------------------------------------------- |
+| GET    | `/api/quizzes?batchId=`         | any role                | Managers: their batches' quizzes. Students: published quizzes in their batch, with `myAttempt` |
+| POST   | `/api/quizzes`                  | Admin, batch mentor     | Create a draft `{batchId, title, description?, durationSeconds, questions?}` |
+| GET    | `/api/quizzes/:id`              | Admin, batch mentor     | Full quiz including correct answers         |
+| PUT    | `/api/quizzes/:id`              | Admin, batch mentor     | Replace a draft (title, settings, all questions) |
+| POST   | `/api/quizzes/:id/publish`      | Admin, batch mentor     | Publish (needs at least 1 question; locks editing) |
+| DELETE | `/api/quizzes/:id`              | Admin, batch mentor     | Only if nobody has attempted it             |
+| GET    | `/api/quizzes/:id/attempts`     | Admin, batch mentor     | Every attempt with status and score         |
+| POST   | `/api/quizzes/:id/start`        | Student in the batch    | Starts the timer (or resumes) → questions without answers, `expiresAt` |
+| POST   | `/api/quizzes/:id/submit`       | Student in the batch    | `{answers: [{questionId, optionId|null}]}` → score and review |
+| GET    | `/api/quizzes/:id/result`       | Student                 | Own score and answer review                 |
+| GET    | `/api/quizzes/:id/leaderboard`  | Managers + batch students | Ranked by score, then time taken (cached) |
+| GET    | `/api/batches/:id/leaderboard`  | Anyone who can see the batch | Total score across the batch's quizzes (cached) |
+
+Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options, **exactly one** correct.
+
+**How a timed attempt works**
+1. `start` records `startedAt` on the server. The server's clock is the only one that counts, so changing the browser clock does nothing.
+2. Students never receive `isCorrect` until they've submitted.
+3. `submit` is graded on the server. Unanswered questions count as wrong. One attempt per student per quiz, and a double submit only scores once.
+4. Submissions later than `durationSeconds` + **15 s grace** are marked `EXPIRED` with score 0. Submissions inside the grace window count, with time taken capped at the limit.
+
+**Leaderboard caching**
+- Both leaderboards are cached for 5 minutes under `lb:quiz:<id>` and `lb:batch:<id>`.
+- Every successful submit deletes both keys (and `dashboard:stats`), so the next read rebuilds fresh data. The TTL is only a safety net.
+- Responses carry `X-Cache: HIT` or `MISS`. One cached copy is shared by every viewer, so it contains names only, never emails.
+- Ranking uses competition style: equal score and time share a rank (1, 2, 2, 4).
+
 ## Roadmap
 
 - [x] **Phase 1, Foundation:** repo, server skeleton, Docker services, database schema
 - [x] **Phase 2, Auth and RBAC:** signup/login, JWT, bcrypt, `requireRole()` middleware
 - [x] **Phase 3, Leads:** CRUD, stages, notes, activity timeline, search/filter/pagination, CSV import
 - [x] **Phase 4, Conversion, batches and attendance:** enroll lead → student account, batches, daily attendance, attendance %
-- [ ] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
+- [x] **Phase 5, Quizzes and leaderboard:** MCQ builder, timed attempts, auto-scoring, Redis-cached leaderboard
 - [ ] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
 - [ ] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI
 - [ ] **Phase 8, Production:** rate limiting, tests, Dockerized app, GitHub Actions CI/CD, deploy with HTTPS
