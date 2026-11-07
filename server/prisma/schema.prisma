@@ -26,6 +26,9 @@ model User {
   role         Role     @default(STUDENT)
   phone        String?
   isActive     Boolean  @default(true)
+  // Sign-in tokens carry this number. Changing or resetting the password
+  // bumps it, which signs out every existing session at once.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -46,9 +49,25 @@ model User {
   quizzesCreated   Quiz[]
   quizAttempts     QuizAttempt[]
   documents        Document[]
+  passwordResets   PasswordResetToken[]
 
   @@index([role])
   @@index([batchId])
+}
+
+// One-time links for "forgot password". Only a SHA-256 hash of the token is
+// stored, so a database leak can't be used to reset anyone's password.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // ─────────────────────────────── Leads pipeline ──────────────────────────────

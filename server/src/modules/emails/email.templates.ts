@@ -12,9 +12,11 @@ export type EmailPayloads = {
   welcome: { userId: string; sealedPassword?: string };
   "quiz-result": { attemptId: string };
   "lead-follow-up": { userId: string; leadIds: string[] };
+  "password-reset": { userId: string; sealedToken: string };
+  "password-changed": { userId: string; how: "changed" | "reset" };
 };
 export type EmailTemplate = keyof EmailPayloads;
-export const TEMPLATES = ["welcome", "quiz-result", "lead-follow-up"] as const satisfies EmailTemplate[];
+export const TEMPLATES = ["welcome", "quiz-result", "lead-follow-up", "password-reset", "password-changed"] as const satisfies EmailTemplate[];
 
 // Retrying won't help (e.g. the user was deleted), so the queue gives up at once.
 export class PermanentEmailError extends Error {}
@@ -141,6 +143,38 @@ ${button(url, "Open follow-ups")}`,
   };
 }
 
+async function passwordReset({ userId, sealedToken }: EmailPayloads["password-reset"]): Promise<Rendered> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+  if (!user) throw new PermanentEmailError("User no longer exists");
+  const url = `${env.CLIENT_URL}/reset-password?token=${open(sealedToken)}`;
+  const note = "This link works once, for 1 hour. If you didn't ask for it, ignore this email: your password stays the same.";
+  return {
+    subject: "Reset your MiniEdCRM password",
+    text: `Hi ${user.name},
+
+Reset your password here: ${url}
+
+${note}`,
+    html: layout("Reset your password", `<p>Hi ${esc(user.name)},</p><p>Someone (hopefully you) asked to reset your MiniEdCRM password.</p>${button(url, "Choose a new password")}<p style="color:#52606d;font-size:13px">${esc(note)}</p>`),
+  };
+}
+
+async function passwordChanged({ userId, how }: EmailPayloads["password-changed"]): Promise<Rendered> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+  if (!user) throw new PermanentEmailError("User no longer exists");
+  const what = how === "reset" ? "was reset using a reset link" : "was changed";
+  const warning = `If this wasn't you, reset it now at ${env.CLIENT_URL}/forgot-password and tell your institute's admin.`;
+  return {
+    subject: "Your MiniEdCRM password was changed",
+    text: `Hi ${user.name},
+
+Your password ${what}, and every device was signed out.
+
+${warning}`,
+    html: layout("Your password was changed", `<p>Hi ${esc(user.name)},</p><p>Your password ${what}, and every device was signed out.</p><p>${esc(warning)}</p>`),
+  };
+}
+
 export async function render<T extends EmailTemplate>(template: T, payload: EmailPayloads[T]): Promise<Rendered> {
   switch (template) {
     case "welcome":
@@ -149,6 +183,10 @@ export async function render<T extends EmailTemplate>(template: T, payload: Emai
       return quizResult(payload as EmailPayloads["quiz-result"]);
     case "lead-follow-up":
       return leadFollowUp(payload as EmailPayloads["lead-follow-up"]);
+    case "password-reset":
+      return passwordReset(payload as EmailPayloads["password-reset"]);
+    case "password-changed":
+      return passwordChanged(payload as EmailPayloads["password-changed"]);
     default:
       throw new PermanentEmailError(`Unknown template ${template}`);
   }

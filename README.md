@@ -70,7 +70,7 @@ npm install
 npm run dev
 ```
 
-Run the end-to-end smoke tests (217 checks) with `npm run test:smoke` while the API is running.
+Run the end-to-end smoke tests (247 checks) with `npm run test:smoke` while the API is running.
 See [server/tests/smoke](server/tests/smoke/README.md).
 
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
@@ -93,9 +93,21 @@ Protected routes need `Authorization: Bearer <token>`.
 | POST   | `/api/auth/signup`      | anyone  | Create a **student** account → `{token, user}` |
 | POST   | `/api/auth/login`       | anyone  | → `{token, user}`                            |
 | GET    | `/api/auth/me`          | any role| Current user                                 |
+| POST   | `/api/auth/change-password` | any role | `{currentPassword, newPassword}` → new `{token, user}`; other devices are signed out |
+| POST   | `/api/auth/forgot-password` | anyone | `{email}` → always the same 200 answer; emails a reset link if the account exists |
+| GET    | `/api/auth/reset-password?token=` | anyone | 200 `{email}` if the link still works, else 400 |
+| POST   | `/api/auth/reset-password` | anyone | `{token, newPassword}`; signs out every session |
 | POST   | `/api/users`            | Admin   | Create a user with any role                  |
 | GET    | `/api/users?role=&page=&limit=` | Admin | List users (paginated)              |
 | PATCH  | `/api/users/:id/status` | Admin   | `{isActive}` to deactivate or reactivate     |
+
+**Passwords and sessions**
+- Each user has a `tokenVersion`, copied into their sign-in token. Changing or resetting the password bumps it,
+  which signs out every existing session at once (`401 "Your session has ended"`).
+- Reset links are random 32-byte tokens that work once, for 1 hour. Only a SHA-256 hash is stored, a new request
+  replaces the old link, and at most one reset email goes out per minute per person. Asking for a reset never
+  reveals whether an email has an account.
+- Every change or reset sends a "your password was changed" email saying what to do if it wasn't you.
 
 ### Leads (Admin only)
 

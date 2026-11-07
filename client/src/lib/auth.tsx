@@ -9,6 +9,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<User>;
   signup: (input: { name: string; email: string; password: string }) => Promise<User>;
   logout: () => void;
+  // After a password change: the server issues a new token for this device.
+  replaceSession: (r: { token: string; user: User }) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -71,6 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       logout,
+      replaceSession: (r) => {
+        tokenStore.set(r.token);
+        setUser(r.user);
+      },
       login: (email, password) => api.post<{ token: string; user: User }>("/auth/login", { email, password }).then(startSession),
       signup: (input) => api.post<{ token: string; user: User }>("/auth/signup", input).then(startSession),
     }),

@@ -50,6 +50,9 @@ export async function login(email: string, password: string) {
 }
 
 export async function issueSession(userId: string) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: publicUserSelect });
-  return { token: signToken({ sub: user.id, role: user.role }), user };
+  const { tokenVersion, ...user } = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { ...publicUserSelect, tokenVersion: true },
+  });
+  return { token: signToken({ sub: user.id, role: user.role, v: tokenVersion }), user };
 }

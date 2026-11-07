@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
-import { BookOpen, FileText, Gauge, GraduationCap, Home, LogOut, Mail, Menu, Users, UserRoundSearch, X } from "lucide-react";
+import { BookOpen, CircleUser, FileText, Gauge, GraduationCap, Home, LogOut, Mail, Menu, Users, UserRoundSearch, X } from "lucide-react";
 import { useAuth, useUser } from "../lib/auth";
 import type { Role } from "../lib/types";
 import { titleCase } from "../lib/format";
@@ -56,7 +56,16 @@ export function Layout() {
       <p className="truncate px-3 text-xs text-faint">
         {titleCase(user.role)} · {user.email}
       </p>
-      <button onClick={logout} className="mt-2 flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted hover:bg-canvas hover:text-ink">
+      <NavLink
+        to="/account"
+        onClick={() => setOpen(false)}
+        className={({ isActive }) =>
+          cx("mt-2 flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm", isActive ? "bg-brand-soft text-brand-strong" : "text-muted hover:bg-canvas hover:text-ink")
+        }
+      >
+        <CircleUser className="size-4" /> Account
+      </NavLink>
+      <button onClick={logout} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted hover:bg-canvas hover:text-ink">
         <LogOut className="size-4" /> Sign out
       </button>
     </div>

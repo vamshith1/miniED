@@ -5,6 +5,7 @@ import type { Role } from "./lib/types";
 import { Spinner } from "./components/ui";
 import { Layout } from "./components/Layout";
 import { LoginPage, SignupPage } from "./pages/Auth";
+import { AccountPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/Password";
 import { LeadsPage } from "./pages/admin/Leads";
 import { LeadDetailPage } from "./pages/admin/LeadDetail";
 import { UsersPage } from "./pages/admin/Users";
@@ -46,6 +47,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         element={
           <RequireRole>
@@ -67,6 +70,7 @@ export function App() {
         <Route path="quizzes/:id/take" element={<RequireRole roles={student}><TakeQuizPage /></RequireRole>} />
         <Route path="quizzes/:id/result" element={<RequireRole roles={student}><QuizResultPage /></RequireRole>} />
         <Route path="documents" element={<DocumentsPage />} />
+        <Route path="account" element={<AccountPage />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

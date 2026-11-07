@@ -7,7 +7,7 @@ import { Button, ErrorBox, TextField, fieldErrorsOf } from "../components/ui";
 // Only follow ?next= to pages inside this app.
 const safeNext = (next: string | null) => (next && next.startsWith("/") && !next.startsWith("//") ? next : null);
 
-function AuthShell({ title, children, footer }: { title: string; children: ReactNode; footer: ReactNode }) {
+export function AuthShell({ title, children, footer }: { title: string; children: ReactNode; footer: ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
@@ -54,9 +54,19 @@ export function LoginPage() {
 
   return (
     <AuthShell title="Sign in" footer={<>New student? <Link to="/signup" className="font-medium text-brand hover:underline">Create an account</Link></>}>
+      {params.get("reset") === "done" && (
+        <p className="mb-4 rounded-md border border-good/30 bg-good-soft px-3 py-2 text-sm text-good" role="status">
+          Password updated. Sign in with your new password.
+        </p>
+      )}
       <form onSubmit={submit} className="space-y-4">
         <TextField label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextField label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div className="-mt-2 text-right">
+          <Link to="/forgot-password" className="text-sm text-brand hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         <ErrorBox error={error} />
         <Button type="submit" loading={busy} className="w-full">
           Sign in

@@ -2,7 +2,8 @@ import jwt from "jsonwebtoken";
 import type { Role } from "@prisma/client";
 import { env } from "../config/env.js";
 
-export type TokenPayload = { sub: string; role: Role };
+// v = the user's tokenVersion when the token was issued (see requireAuth).
+export type TokenPayload = { sub: string; role: Role; v: number };
 
 export function signToken(payload: TokenPayload) {
   return jwt.sign(payload, env.JWT_SECRET, {

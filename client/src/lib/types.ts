@@ -211,7 +211,7 @@ export interface BatchLeaderboard {
 export interface EmailLog {
   id: string;
   to: string;
-  template: "welcome" | "quiz-result" | "lead-follow-up";
+  template: "welcome" | "quiz-result" | "lead-follow-up" | "password-reset" | "password-changed";
   status: EmailStatus;
   attempts: number;
   lastError: string | null;

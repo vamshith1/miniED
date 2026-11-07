@@ -3,7 +3,7 @@ import { z } from "zod";
 const email = z.email().trim().toLowerCase();
 // bcrypt only uses the first 72 bytes, so longer passwords are rejected
 // instead of being silently cut short.
-const password = z.string().min(8, "Password must be at least 8 characters").max(72);
+export const password = z.string().min(8, "Password must be at least 8 characters").max(72);
 
 export const signupSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -20,6 +20,18 @@ export const loginSchema = z.object({
 export const createUserSchema = signupSchema.extend({
   role: z.enum(["ADMIN", "MENTOR", "STUDENT"]),
   phone: z.string().trim().max(20).optional(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: password,
+});
+
+export const forgotPasswordSchema = z.object({ email });
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  newPassword: password,
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;

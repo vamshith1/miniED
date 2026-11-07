@@ -11,6 +11,8 @@ const TEMPLATE_LABEL: Record<EmailLog["template"], string> = {
   welcome: "Welcome",
   "quiz-result": "Quiz result",
   "lead-follow-up": "Follow-up reminder",
+  "password-reset": "Password reset link",
+  "password-changed": "Password changed notice",
 };
 const statusTone = (s: EmailStatus) => (s === "SENT" ? "good" : s === "FAILED" ? "bad" : "warn");
 
