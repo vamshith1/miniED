@@ -23,11 +23,36 @@ const REFRESH_MS = 30_000;
 const stagger = (i: number): CSSProperties => ({ animationDelay: `${i * 50}ms` });
 const pctFmt = (n: number) => `${Math.round(n * 10) / 10}%`;
 
+// How long the pointer must stay still before a chart tooltip appears.
+const TOOLTIP_REST_MS = 300;
+
 // One tooltip style for every chart: text in ink colours, a swatch carries the series identity.
-function ChartTooltip({ active, payload, label, format }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string; format?: (v: number) => string }) {
-  if (!active || !payload?.length) return null;
+// It stays hidden while the pointer moves and fades in once it rests, so it doesn't chase the cursor.
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  format,
+  coordinate,
+}: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+  format?: (v: number) => string;
+  coordinate?: { x?: number; y?: number };
+}) {
+  const [resting, setResting] = useState(false);
+  const x = Math.round(coordinate?.x ?? 0);
+  const y = Math.round(coordinate?.y ?? 0);
+  useEffect(() => {
+    setResting(false);
+    if (!active) return;
+    const id = setTimeout(() => setResting(true), TOOLTIP_REST_MS);
+    return () => clearTimeout(id);
+  }, [active, x, y, label]);
+  if (!active || !payload?.length || !resting) return null;
   return (
-    <div className="rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-md">
+    <div className="animate-fade-in rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-md">
       <p className="mb-1 font-medium text-ink">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="flex items-center gap-2 text-muted">
@@ -282,7 +307,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                 <CartesianGrid vertical={false} stroke={GRID} />
                 <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={{ stroke: GRID }} />
                 <YAxis allowDecimals={false} tick={TICK} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
+                <Tooltip isAnimationActive={false} content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
                 <Legend content={<SeriesLegend items={[{ name: "New leads", color: SERIES_1 }, { name: "Converted", color: SERIES_2 }]} />} />
                 <Bar dataKey="created" name="New leads" fill={SERIES_1} activeBar={{ fill: HOVER_BAR }} radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} />
                 <Bar dataKey="converted" name="Converted" fill={SERIES_2} activeBar={{ fill: "#c2541f" }} radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} />
@@ -298,7 +323,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                 <CartesianGrid horizontal={false} stroke={GRID} />
                 <XAxis type="number" allowDecimals={false} tick={TICK} tickLine={false} axisLine={false} />
                 <YAxis type="category" dataKey="stage" tick={TICK} tickLine={false} axisLine={false} width={80} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
+                <Tooltip isAnimationActive={false} content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
                 <Bar
                   dataKey="count"
                   name="Leads"
@@ -327,7 +352,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                   <CartesianGrid horizontal={false} stroke={GRID} />
                   <XAxis type="number" allowDecimals={false} tick={TICK} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="source" tick={TICK} tickLine={false} axisLine={false} width={104} tickFormatter={(v: string) => shorten(v, 14)} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
+                  <Tooltip isAnimationActive={false} content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
                   <Bar dataKey="count" name="Leads" fill={SERIES_1} activeBar={{ fill: HOVER_BAR }} radius={[0, 4, 4, 0]} maxBarSize={22} animationDuration={700}>
                     <LabelList dataKey="count" position="right" style={{ fill: "#1f1a2e", fontSize: 12 }} />
                   </Bar>
@@ -352,7 +377,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                   <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={TICK} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" tick={TICK} tickLine={false} axisLine={false} width={124} tickFormatter={(v: string) => shorten(v)} />
                   <ReferenceLine x={75} stroke={AXIS_TEXT} strokeDasharray="0" label={{ value: "75% target", position: "top", fill: AXIS_TEXT, fontSize: 11 }} />
-                  <Tooltip content={<ChartTooltip format={(v) => fmtPct(v)} />} cursor={{ fill: CURSOR }} />
+                  <Tooltip isAnimationActive={false} content={<ChartTooltip format={(v) => fmtPct(v)} />} cursor={{ fill: CURSOR }} />
                   <Bar
                     dataKey="percentage"
                     name="Attendance"
@@ -386,7 +411,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                   <CartesianGrid horizontal={false} stroke={GRID} />
                   <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={TICK} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" tick={TICK} tickLine={false} axisLine={false} width={124} tickFormatter={(v: string) => shorten(v)} />
-                  <Tooltip content={<ChartTooltip format={(v) => fmtPct(v)} />} cursor={{ fill: CURSOR }} />
+                  <Tooltip isAnimationActive={false} content={<ChartTooltip format={(v) => fmtPct(v)} />} cursor={{ fill: CURSOR }} />
                   <Bar
                     dataKey="averageScore"
                     name="Average score"
