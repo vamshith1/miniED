@@ -17,6 +17,8 @@ import { StudentHomePage } from "./pages/student/Home";
 import { TakeQuizPage } from "./pages/student/TakeQuiz";
 import { QuizResultPage } from "./pages/student/QuizResult";
 import { DocumentsPage } from "./pages/Documents";
+import { PaymentsPage } from "./pages/admin/Payments";
+import { MyPaymentsPage } from "./pages/student/MyPayments";
 
 // Signed-in pages. Wrong role → your own home page; signed out → login,
 // coming back here afterwards (e.g. from a link in an email).
@@ -62,6 +64,7 @@ export function App() {
         <Route path="leads/:id" element={<RequireRole roles={admin}><LeadDetailPage /></RequireRole>} />
         <Route path="users" element={<RequireRole roles={admin}><UsersPage /></RequireRole>} />
         <Route path="emails" element={<RequireRole roles={admin}><EmailsPage /></RequireRole>} />
+        <Route path="payments" element={<RequireRole roles={admin}><PaymentsPage /></RequireRole>} />
         <Route path="batches" element={<RequireRole roles={managers}><BatchesPage /></RequireRole>} />
         <Route path="batches/:id" element={<RequireRole roles={managers}><BatchDetailPage /></RequireRole>} />
         <Route path="quizzes/new" element={<RequireRole roles={managers}><QuizEditorPage /></RequireRole>} />
@@ -69,6 +72,7 @@ export function App() {
         <Route path="home" element={<RequireRole roles={student}><StudentHomePage /></RequireRole>} />
         <Route path="quizzes/:id/take" element={<RequireRole roles={student}><TakeQuizPage /></RequireRole>} />
         <Route path="quizzes/:id/result" element={<RequireRole roles={student}><QuizResultPage /></RequireRole>} />
+        <Route path="my-payments" element={<RequireRole roles={student}><MyPaymentsPage /></RequireRole>} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="*" element={<Home />} />

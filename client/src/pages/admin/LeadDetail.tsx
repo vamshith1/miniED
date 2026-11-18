@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, CreditCard, GraduationCap, Trash2 } from "lucide-react";
 import { openRazorpayCheckout } from "../../lib/checkout";
+import { PaymentStatusBadge, usePaymentConfig } from "../../components/Payments";
 import { api } from "../../lib/api";
 import { fmtDateTime, fmtMoney, relative, titleCase } from "../../lib/format";
 import {
@@ -16,7 +17,6 @@ import {
   type LeadStage,
   type Paginated,
   type Payment,
-  type PaymentConfig,
   type VerifyResult,
 } from "../../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Modal, PageHeader, QueryState, Select, Spinner, TextField, Textarea, fieldErrorsOf, stageTone, askConfirm } from "../../components/ui";
@@ -327,9 +327,6 @@ function Timeline({ leadId }: { leadId: string }) {
   );
 }
 
-const usePaymentConfig = (enabled = true) =>
-  useQuery({ queryKey: ["payments-config"], queryFn: () => api.get<PaymentConfig>("/payments/config"), staleTime: Infinity, enabled });
-
 type Step = "form" | "fake-checkout" | "verifying" | "paid" | "declined" | "enrolled";
 
 function ConvertModal({ lead, open, onClose, onDone }: { lead: Lead; open: boolean; onClose: () => void; onDone: () => void }) {
@@ -585,8 +582,6 @@ function PaidSummary({ result, lead, onClose }: { result: VerifyResult; lead: Le
   );
 }
 
-const paymentTone = (s: Payment["status"]) => (s === "PAID" ? "good" : s === "FAILED" ? "bad" : "neutral");
-
 function Payments({ leadId }: { leadId: string }) {
   const config = usePaymentConfig();
   const payments = useQuery({
@@ -607,7 +602,7 @@ function Payments({ leadId }: { leadId: string }) {
                 <li key={p.id} className="rounded-md border border-line p-3 text-sm transition-colors hover:border-brand/30">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold tabular-nums">{fmtMoney(p.amountPaise, p.currency)}</span>
-                    <Badge tone={paymentTone(p.status)}>{p.status === "CREATED" ? "Not paid" : titleCase(p.status)}</Badge>
+                    <PaymentStatusBadge status={p.status} />
                   </div>
                   <p className="mt-1 text-xs text-muted">
                     {p.batch.course} · {p.batch.name}

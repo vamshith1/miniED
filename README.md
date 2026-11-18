@@ -341,9 +341,9 @@ stored. Downloads are always sent as attachments with `Cache-Control: no-store`.
 
 | Role    | Pages |
 | ------- | ----- |
-| Admin   | Dashboard (charts, each with a table view), Leads (search, filters, CSV import, lead detail with notes, timeline, stage and enrolment), Batches, Users, Emails |
+| Admin   | Dashboard (charts, each with a table view; fees collected), Leads (search, filters, CSV import, lead detail with notes, timeline, stage, payments and enrolment), Batches, Users, Payments (totals, filters, receipts), Emails |
 | Mentor  | My batches: roster with attendance % and resumes, daily attendance marking, quiz builder (draft → publish), attempts and leaderboards |
-| Student | Home (attendance, quizzes, batch leaderboard), timed quiz with server-side timer and auto-submit, result review, resume upload |
+| Student | Home (attendance, quizzes, batch leaderboard), timed quiz with server-side timer and auto-submit, result review, resume upload, My payments (history and printable receipts) |
 
 The session lives in an httpOnly cookie. Pages check roles too, but the API is what enforces them.
 
@@ -357,7 +357,8 @@ Course fees, collected when a lead is enrolled. Each batch can have a fee (`feeP
 | POST   | `/api/payments/orders` | `{leadId, batchId}` → order at the gateway plus what the checkout needs. **The amount comes from the batch**, never the request |
 | POST   | `/api/payments/verify` | `{orderId, gatewayPaymentId, signature}` from the checkout → checks the signature, marks PAID, enrolls the lead |
 | POST   | `/api/payments/webhook` | Called by Razorpay. Authenticated by an HMAC signature over the raw body, not a session |
-| GET    | `/api/payments?leadId=` | A lead's payments |
+| GET    | `/api/payments` | Every payment, newest first. Query: `status` (`PAID`, `FAILED`, `CREATED`), `batchId`, `search` (name, email or payment id), `from`, `to`, `leadId`, `page`, `limit`. Includes a `summary`: amount collected and counts per status for the same filters |
+| GET    | `/api/payments/mine` | Student: their own payments and total paid (no internal details) |
 | POST   | `/api/payments/fake/complete` | Test gateway only: what Razorpay's checkout would return |
 
 **How a payment works**

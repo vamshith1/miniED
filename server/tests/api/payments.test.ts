@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../src/lib/prisma.js";
 import { signFakeCheckout, signFakeWebhook } from "../../src/modules/payments/gateway.js";
 import { render } from "../../src/modules/emails/email.templates.js";
-import { as, closeApp, createUser, getApp, uniqueEmail, ymd } from "../helpers.js";
+import { hashPassword } from "../../src/lib/password.js";
+import { PASSWORD, as, closeApp, createUser, getApp, login, uniqueEmail, ymd } from "../helpers.js";
 
 afterAll(closeApp);
 
@@ -184,6 +185,72 @@ describe("webhook", () => {
     const { checkout } = (await order(lead.id)).body;
     await webhook({ event: "payment.failed", payload: { payment: { entity: { id: "pay_f", order_id: checkout.orderId, error_description: "Card declined" } } } });
     expect(await prisma.payment.findUniqueOrThrow({ where: { gatewayOrderId: checkout.orderId } })).toMatchObject({ status: "FAILED", failureReason: "Card declined" });
+  });
+});
+
+describe("payment history", () => {
+  // A paid-and-enrolled lead, a failed one and a pending one, all with emails unique to this block.
+  const tag = `hist${Date.now()}`;
+  let paidLead: { id: string; email: string };
+  let paidPaymentId: string;
+
+  beforeAll(async () => {
+    paidLead = (await as(admin).post("/leads", { name: `History Paid ${tag}`, email: uniqueEmail(tag) })).body.lead;
+    const { checkout } = (await order(paidLead.id)).body;
+    paidPaymentId = (await as(admin).post("/payments/verify", await payInCheckout(checkout.orderId))).body.payment.id;
+
+    const failedLead = (await as(admin).post("/leads", { name: `History Failed ${tag}`, email: uniqueEmail(tag) })).body.lead;
+    const failed = (await order(failedLead.id)).body.checkout;
+    await as(admin).post("/payments/fake/complete", { orderId: failed.orderId, outcome: "failure" });
+
+    const pendingLead = (await as(admin).post("/leads", { name: `History Pending ${tag}`, email: uniqueEmail(tag) })).body.lead;
+    await order(pendingLead.id);
+  });
+
+  it("admins filter by status and search, with totals for the same filters", async () => {
+    const all = await as(admin).get(`/payments?search=${tag}`);
+    expect(all.status).toBe(200);
+    expect(all.body.total).toBe(3);
+    expect(all.body.summary).toMatchObject({ paid: 1, failed: 1, pending: 1, collectedPaise: FEE });
+    expect(all.body.items[0].lead.name).toMatch(/^History /);
+
+    const paidOnly = await as(admin).get(`/payments?search=${tag}&status=PAID`);
+    expect(paidOnly.body.items.map((p: { status: string }) => p.status)).toEqual(["PAID"]);
+    expect(paidOnly.body.summary.failed).toBe(1); // totals ignore the status filter
+
+    const future = await as(admin).get(`/payments?search=${tag}&from=${ymd(1)}`);
+    expect(future.body.total).toBe(0);
+    expect((await as(admin).get(`/payments?search=${tag}&to=${ymd(0)}`)).body.total).toBe(3); // "to" includes today
+  });
+
+  it("only admins see everyone's payments", async () => {
+    const mentor = await createUser("MENTOR");
+    expect((await as(mentor.token).get("/payments")).status).toBe(403);
+  });
+
+  it("a student sees only their own payments, without internal details", async () => {
+    // Sign in as the student created by the paid enrolment.
+    const student = await prisma.user.findUniqueOrThrow({ where: { email: paidLead.email } });
+    await prisma.user.update({ where: { id: student.id }, data: { passwordHash: await hashPassword(PASSWORD) } });
+    const { token } = await login(paidLead.email, PASSWORD);
+
+    const mine = await as(token).get("/payments/mine");
+    expect(mine.status).toBe(200);
+    expect(mine.body.items).toHaveLength(1);
+    expect(mine.body.items[0]).toMatchObject({ id: paidPaymentId, status: "PAID", amountPaise: FEE, batch: { course: "Full Stack" } });
+    expect(mine.body.items[0].createdBy).toBeUndefined();
+    expect(mine.body.items[0].enrollmentError).toBeUndefined();
+    expect(mine.body.totalPaidPaise).toBe(FEE);
+
+    const other = await createUser("STUDENT");
+    expect((await as(other.token).get("/payments/mine")).body.items).toHaveLength(0);
+    expect((await as(admin).get("/payments/mine")).status).toBe(403);
+  });
+
+  it("the dashboard counts fees collected, refreshed when a payment arrives", async () => {
+    const res = await as(admin).get("/dashboard/stats");
+    expect(res.body.payments.last30Days.collectedPaise).toBeGreaterThanOrEqual(FEE);
+    expect(res.body.payments.last30Days.failed).toBeGreaterThanOrEqual(1);
   });
 });
 

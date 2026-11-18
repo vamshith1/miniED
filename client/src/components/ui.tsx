@@ -258,9 +258,11 @@ export function AnimatedNumber({ value, format = (n) => Math.round(n).toLocaleSt
 
 // ---------- Tables
 
+// "relative" keeps absolutely positioned bits (like sr-only labels) inside the scroll box,
+// otherwise they escape it and make the whole page scroll sideways.
 export function Table({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[560px] text-left text-sm [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-brand-soft/40">{children}</table>
     </div>
   );

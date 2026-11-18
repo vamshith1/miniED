@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { Prisma, type Payment } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { cacheKeys, invalidate } from "../../lib/cache.js";
+import { paginated, toSkipTake } from "../../lib/pagination.js";
+import { toDbDate } from "../../lib/dates.js";
 import { HttpError } from "../../lib/http-error.js";
 import type { AuthUser } from "../../middleware/auth.js";
 import { enqueueEmail } from "../emails/email.queue.js";
@@ -36,6 +39,7 @@ const paymentSelect = {
   createdAt: true,
   paidAt: true,
   leadId: true,
+  lead: { select: { id: true, name: true, email: true, stage: true } },
   batch: { select: { id: true, name: true, course: true } },
   createdBy: { select: { id: true, name: true } },
 } satisfies Prisma.PaymentSelect;
@@ -156,6 +160,7 @@ export async function confirmPaid(gatewayOrderId: string, gatewayPaymentId: stri
   if (lead) await enqueueEmail("payment-receipt", lead.email, { paymentId: payment.id });
 
   const enrollment = await enrollAfterPayment(payment);
+  await invalidate(cacheKeys.dashboardStats()); // "Fees collected" changed
   return { payment: await getPayment(payment.id), enrollment, alreadyProcessed: false };
 }
 
@@ -228,6 +233,77 @@ export async function getPayment(id: string) {
   return prisma.payment.findUniqueOrThrow({ where: { id }, select: paymentSelect });
 }
 
-export async function listPayments(leadId: string) {
-  return prisma.payment.findMany({ where: { leadId }, orderBy: { createdAt: "desc" }, select: paymentSelect });
+export type PaymentStatusFilter = "PAID" | "FAILED" | "CREATED";
+export interface ListPaymentsQuery {
+  leadId?: string;
+  status?: PaymentStatusFilter;
+  batchId?: string;
+  search?: string; // the payer's name or email, or a gateway payment id
+  from?: string; // YYYY-MM-DD, on the day the payment was started
+  to?: string;
+  page: number;
+  limit: number;
+}
+
+/**
+ * Admin list with filters. The summary counts every status for the same filters
+ * (except the status filter itself), so the totals stay visible while one status is shown.
+ */
+export async function listPayments(q: ListPaymentsQuery) {
+  const toEnd = q.to ? new Date(toDbDate(q.to).getTime() + 24 * 3600 * 1000) : undefined; // "to" includes that whole day
+  const base: Prisma.PaymentWhereInput = {
+    ...(q.leadId && { leadId: q.leadId }),
+    ...(q.batchId && { batchId: q.batchId }),
+    ...((q.from || toEnd) && { createdAt: { ...(q.from && { gte: toDbDate(q.from) }), ...(toEnd && { lt: toEnd }) } }),
+    ...(q.search && {
+      OR: [
+        { lead: { name: { contains: q.search, mode: "insensitive" } } },
+        { lead: { email: { contains: q.search, mode: "insensitive" } } },
+        { gatewayPaymentId: { contains: q.search } },
+      ],
+    }),
+  };
+  const where: Prisma.PaymentWhereInput = { ...base, ...(q.status && { status: q.status }) };
+
+  const [items, total, byStatus] = await prisma.$transaction([
+    prisma.payment.findMany({ where, orderBy: { createdAt: "desc" }, select: paymentSelect, ...toSkipTake(q) }),
+    prisma.payment.count({ where }),
+    prisma.payment.groupBy({ by: ["status"], where: base, orderBy: { status: "asc" }, _count: { _all: true }, _sum: { amountPaise: true } }),
+  ]);
+  const of = (s: PaymentStatusFilter) => byStatus.find((g) => g.status === s);
+  const count = (s: PaymentStatusFilter) => (of(s)?._count as { _all?: number } | undefined)?._all ?? 0;
+  const summary = {
+    currency: CURRENCY,
+    collectedPaise: of("PAID")?._sum?.amountPaise ?? 0,
+    paid: count("PAID"),
+    failed: count("FAILED"),
+    pending: count("CREATED"),
+  };
+  return { ...paginated(items, total, q), summary };
+}
+
+/**
+ * A student's own payments: those made for the lead they were enrolled from, plus any
+ * made under their email (for example when enrolment after payment couldn't complete).
+ * Only what a payer needs to see: no internal ids of who took it or enrolment errors.
+ */
+export async function myPayments(user: AuthUser) {
+  const items = await prisma.payment.findMany({
+    where: { lead: { OR: [{ convertedUserId: user.id }, { email: { equals: user.email, mode: "insensitive" } }] } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      amountPaise: true,
+      currency: true,
+      status: true,
+      gatewayPaymentId: true,
+      failureReason: true,
+      createdAt: true,
+      paidAt: true,
+      batch: { select: { name: true, course: true } },
+      lead: { select: { name: true } },
+    },
+  });
+  const totalPaidPaise = items.filter((p) => p.status === "PAID").reduce((sum, p) => sum + p.amountPaise, 0);
+  return { items, totalPaidPaise, currency: CURRENCY };
 }

@@ -254,6 +254,7 @@ export interface DashboardStats {
     byBatch: { batchId: string; name: string; averageScore: number | null; attempts: number }[];
   };
   emails: { last7Days: { sent: number; queued: number; failed: number } };
+  payments?: { last30Days: { collectedPaise: number; paid: number; failed: number; pending: number } };
 }
 
 // ---------- Payments
@@ -278,8 +279,33 @@ export interface Payment {
   createdAt: string;
   paidAt: string | null;
   leadId: string;
+  lead: { id: string; name: string; email: string; stage: LeadStage };
   batch: { id: string; name: string; course: string };
   createdBy: { id: string; name: string };
+}
+
+export interface PaymentSummary {
+  currency: string;
+  collectedPaise: number;
+  paid: number;
+  failed: number;
+  pending: number;
+}
+
+export type PaymentList = Paginated<Payment> & { summary: PaymentSummary };
+
+// What a student sees about their own payments.
+export interface MyPayment {
+  id: string;
+  amountPaise: number;
+  currency: string;
+  status: Payment["status"];
+  gatewayPaymentId: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  batch: { name: string; course: string };
+  lead: { name: string };
 }
 
 export interface CheckoutInfo {

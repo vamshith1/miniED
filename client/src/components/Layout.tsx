@@ -1,18 +1,21 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
-import { BookOpen, CircleUser, FileText, Gauge, GraduationCap, Home, LogOut, Mail, Menu, Moon, Sun, Users, UserRoundSearch, X } from "lucide-react";
+import { BookOpen, CircleUser, FileText, Gauge, GraduationCap, Home, IndianRupee, LogOut, Mail, Menu, Moon, Sun, Users, UserRoundSearch, Wallet, X } from "lucide-react";
+import { usePaymentConfig } from "./Payments";
 import { useAuth, useUser } from "../lib/auth";
 import type { Role } from "../lib/types";
 import { titleCase } from "../lib/format";
 import { useTheme } from "../lib/theme";
 import { cx } from "./ui";
 
-const NAV: Record<Role, { to: string; label: string; icon: ReactNode }[]> = {
+// payments: only shown when payments are switched on.
+const NAV: Record<Role, { to: string; label: string; icon: ReactNode; payments?: boolean }[]> = {
   ADMIN: [
     { to: "/dashboard", label: "Dashboard", icon: <Gauge className="size-4" /> },
     { to: "/leads", label: "Leads", icon: <UserRoundSearch className="size-4" /> },
     { to: "/batches", label: "Batches", icon: <GraduationCap className="size-4" /> },
     { to: "/users", label: "Users", icon: <Users className="size-4" /> },
+    { to: "/payments", label: "Payments", icon: <IndianRupee className="size-4" />, payments: true },
     { to: "/emails", label: "Emails", icon: <Mail className="size-4" /> },
   ],
   MENTOR: [
@@ -22,6 +25,7 @@ const NAV: Record<Role, { to: string; label: string; icon: ReactNode }[]> = {
   STUDENT: [
     { to: "/home", label: "Home", icon: <Home className="size-4" /> },
     { to: "/documents", label: "My resume", icon: <FileText className="size-4" /> },
+    { to: "/my-payments", label: "My payments", icon: <Wallet className="size-4" />, payments: true },
   ],
 };
 
@@ -30,12 +34,13 @@ export function Layout() {
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
+  const paymentsOn = !!usePaymentConfig().data?.enabled;
   const ThemeIcon = theme === "dark" ? Sun : Moon;
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
 
   const nav = (
     <nav className="space-y-0.5" aria-label="Main">
-      {NAV[user.role].map((item) => (
+      {NAV[user.role].filter((item) => !item.payments || paymentsOn).map((item) => (
         <NavLink
           key={item.to}
           to={item.to}

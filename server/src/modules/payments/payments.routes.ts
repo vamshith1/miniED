@@ -1,14 +1,24 @@
 import express, { Router } from "express";
 import { z } from "zod";
+import { paginationQuery } from "../../lib/pagination.js";
+import { dateOnly } from "../../lib/dates.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { limits } from "../../middleware/rate-limit.js";
-import { completeFakeCheckout, createOrder, handleWebhook, listPayments, paymentConfig, verifyCheckout } from "./payments.service.js";
+import { completeFakeCheckout, createOrder, handleWebhook, listPayments, myPayments, paymentConfig, verifyCheckout } from "./payments.service.js";
 
 const id = z.string().trim().min(1).max(100);
 const createOrderSchema = z.object({ leadId: id, batchId: id });
 const verifySchema = z.object({ orderId: id, gatewayPaymentId: id, signature: z.string().trim().regex(/^[0-9a-f]{64}$/, "Invalid signature") });
 const fakeCompleteSchema = z.object({ orderId: id, outcome: z.enum(["success", "failure"]) });
-const listSchema = z.object({ leadId: id });
+const optionalText = z.string().trim().max(200).optional().transform((v) => v || undefined);
+const listSchema = paginationQuery.extend({
+  leadId: optionalText,
+  status: z.enum(["PAID", "FAILED", "CREATED"]).optional().or(z.literal("").transform(() => undefined)),
+  batchId: optionalText,
+  search: optionalText,
+  from: dateOnly.optional().or(z.literal("").transform(() => undefined)),
+  to: dateOnly.optional().or(z.literal("").transform(() => undefined)),
+});
 
 export const paymentsRouter = Router();
 paymentsRouter.use(requireAuth);
@@ -37,10 +47,14 @@ paymentsRouter.post("/fake/complete", admin, async (req, res) => {
   res.json(await completeFakeCheckout(orderId, outcome));
 });
 
-// GET /api/payments?leadId=: a lead's payments, newest first
+// GET /api/payments?status=&batchId=&search=&from=&to=&leadId=&page=&limit=: every payment, newest first, with totals
 paymentsRouter.get("/", admin, async (req, res) => {
-  const { leadId } = listSchema.parse(req.query);
-  res.json({ items: await listPayments(leadId) });
+  res.json(await listPayments(listSchema.parse(req.query)));
+});
+
+// GET /api/payments/mine: the signed-in student's own payments
+paymentsRouter.get("/mine", requireRole("STUDENT"), async (req, res) => {
+  res.json(await myPayments(req.user!));
 });
 
 /**

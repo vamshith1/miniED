@@ -148,6 +148,24 @@ async function quizStats() {
   };
 }
 
+async function paymentStats() {
+  const groups = await prisma.payment.groupBy({
+    by: ["status"],
+    where: { createdAt: { gte: daysAgo(30) } },
+    _count: { _all: true },
+    _sum: { amountPaise: true },
+  });
+  const of = (s: "PAID" | "FAILED" | "CREATED") => groups.find((g) => g.status === s);
+  return {
+    last30Days: {
+      collectedPaise: of("PAID")?._sum.amountPaise ?? 0,
+      paid: of("PAID")?._count._all ?? 0,
+      failed: of("FAILED")?._count._all ?? 0,
+      pending: of("CREATED")?._count._all ?? 0,
+    },
+  };
+}
+
 async function emailStats() {
   const groups = await prisma.emailLog.groupBy({ by: ["status"], where: { createdAt: { gte: daysAgo(7) } }, _count: { _all: true } });
   const get = (s: string) => groups.find((g) => g.status === s)?._count._all ?? 0;
@@ -156,13 +174,14 @@ async function emailStats() {
 
 export function getDashboardStats() {
   return getOrSet(cacheKeys.dashboardStats(), TTL_SECONDS, async () => {
-    const [leads, people, attendance, quizzes, emails] = await Promise.all([
+    const [leads, people, attendance, quizzes, emails, payments] = await Promise.all([
       leadStats(),
       peopleAndBatches(),
       attendanceStats(),
       quizStats(),
       emailStats(),
+      paymentStats(),
     ]);
-    return { generatedAt: new Date().toISOString(), leads, ...people, attendance, quizzes, emails };
+    return { generatedAt: new Date().toISOString(), leads, ...people, attendance, quizzes, emails, payments };
   });
 }

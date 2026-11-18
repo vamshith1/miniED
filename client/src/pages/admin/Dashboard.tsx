@@ -2,9 +2,10 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, BookCheck, CalendarCheck, GraduationCap, Mail, Percent, PhoneCall, RefreshCw, Trophy, UserRoundSearch } from "lucide-react";
+import { AlertTriangle, BookCheck, CalendarCheck, GraduationCap, IndianRupee, Mail, Percent, PhoneCall, RefreshCw, Trophy, UserRoundSearch } from "lucide-react";
+import { usePaymentConfig } from "../../components/Payments";
 import { api } from "../../lib/api";
-import { fmtDay, fmtPct, relative, titleCase } from "../../lib/format";
+import { fmtDay, fmtMoney, fmtPct, relative, titleCase } from "../../lib/format";
 import { STAGES, type DashboardStats } from "../../lib/types";
 import { AnimatedNumber, Button, Card, PageHeader, QueryState, Stat, cx } from "../../components/ui";
 
@@ -204,6 +205,7 @@ function StatLink({ to, index, ...stat }: Parameters<typeof Stat>[0] & { to: str
 function DashboardBody({ s }: { s: DashboardStats }) {
   const weeks = s.leads.perWeek.map((w) => ({ ...w, label: fmtDay(w.weekStart).replace(/,? \d{4}$/, "") }));
   const navigate = useNavigate();
+  const paymentsOn = !!usePaymentConfig().data?.enabled;
   const stages = STAGES.map((st) => ({ stage: titleCase(st), raw: st, count: s.leads.byStage[st] }));
   const atRisk = s.attendance.byBatch.filter((b) => b.percentage !== null && b.percentage < 75);
   // Stats cached by an older server version (up to 60 s after a deploy) may not have this yet.
@@ -262,9 +264,29 @@ function DashboardBody({ s }: { s: DashboardStats }) {
           icon={<Trophy className="size-4" />}
           label="Quiz average"
           value={<AnimatedNumber value={s.quizzes.averageScoreLast30Days} format={pctFmt} />}
-          hint={`${s.quizzes.attemptsLast30Days} submissions in 30 days`}
+          hint={`${s.quizzes.attemptsLast30Days} submissions in 30 days · ${s.quizzes.published} published`}
         />
-        <StatLink index={6} to="/batches" icon={<BookCheck className="size-4" />} label="Published quizzes" value={<AnimatedNumber value={s.quizzes.published} />} hint="Across all batches" />
+        {s.payments && paymentsOn ? (
+          <StatLink
+            index={6}
+            to="/payments"
+            icon={<IndianRupee className="size-4" />}
+            label="Fees collected (30 days)"
+            value={<AnimatedNumber value={s.payments.last30Days.collectedPaise} format={(n) => fmtMoney(Math.round(n))} />}
+            tone={s.payments.last30Days.failed ? undefined : "good"}
+            hint={
+              s.payments.last30Days.failed ? (
+                <span className="font-medium text-bad">
+                  {s.payments.last30Days.paid} paid · {s.payments.last30Days.failed} failed →
+                </span>
+              ) : (
+                `${s.payments.last30Days.paid} paid · ${s.payments.last30Days.pending} not completed`
+              )
+            }
+          />
+        ) : (
+          <StatLink index={6} to="/batches" icon={<BookCheck className="size-4" />} label="Published quizzes" value={<AnimatedNumber value={s.quizzes.published} />} hint="Across all batches" />
+        )}
         <StatLink
           index={7}
           to={failed ? "/emails?status=FAILED" : "/emails"}
