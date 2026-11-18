@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
-import { BookOpen, CircleUser, FileText, Gauge, GraduationCap, Home, IndianRupee, LogOut, Mail, Menu, Moon, Sun, Users, UserRoundSearch, Wallet, X } from "lucide-react";
+import { BookOpen, CalendarCheck, CircleUser, FileText, Gauge, GraduationCap, Home, Hourglass, IndianRupee, LogOut, Mail, Menu, Moon, PenLine, Sun, Users, UserRoundSearch, Wallet, X } from "lucide-react";
 import { usePaymentConfig } from "./Payments";
 import { useAuth, useUser } from "../lib/auth";
 import type { Role } from "../lib/types";
@@ -24,6 +24,9 @@ const NAV: Record<Role, { to: string; label: string; icon: ReactNode; payments?:
   ],
   STUDENT: [
     { to: "/home", label: "Home", icon: <Home className="size-4" /> },
+    { to: "/my-quizzes", label: "My quizzes", icon: <PenLine className="size-4" /> },
+    { to: "/my-attendance", label: "My attendance", icon: <CalendarCheck className="size-4" /> },
+    { to: "/time-spent", label: "Time spent", icon: <Hourglass className="size-4" /> },
     { to: "/documents", label: "My resume", icon: <FileText className="size-4" /> },
     { to: "/my-payments", label: "My payments", icon: <Wallet className="size-4" />, payments: true },
   ],

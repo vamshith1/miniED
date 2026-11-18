@@ -320,6 +320,17 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 - Responses carry `X-Cache: HIT` or `MISS`. One cached copy is shared by every viewer, so it contains names only, never emails.
 - Ranking uses competition style: equal score and time share a rank (1, 2, 2, 4).
 
+### Student progress (Student only)
+
+| Method | Path                        | What |
+| ------ | --------------------------- | ---- |
+| GET    | `/api/progress/quizzes`     | Every finished attempt: marks, %, time, rank among classmates and class average; plus average, best and first places |
+| GET    | `/api/progress/attendance`  | Every marked day, present/late/absent counts, %, current and longest streak |
+| GET    | `/api/progress/time`        | Learning time: class time (attended days × the batch's `classMinutes`) plus measured quiz time, total and per week for 12 weeks |
+
+Batches have an optional `classMinutes` (class length per day, 15–600). Without it, class time isn't guessed: the
+time page shows the days attended and says the class length isn't set.
+
 ### Dashboard and documents
 
 | Method | Path                              | Who                        | What                                    |
@@ -343,7 +354,7 @@ stored. Downloads are always sent as attachments with `Cache-Control: no-store`.
 | ------- | ----- |
 | Admin   | Dashboard (charts, each with a table view; fees collected), Leads (search, filters, CSV import, lead detail with notes, timeline, stage, payments and enrolment), Batches, Users, Payments (totals, filters, receipts), Emails |
 | Mentor  | My batches: roster with attendance % and resumes, daily attendance marking, quiz builder (draft → publish), attempts and leaderboards |
-| Student | Home (attendance, quizzes, batch leaderboard), timed quiz with server-side timer and auto-submit, result review, resume upload, My payments (history and printable receipts) |
+| Student | Home (attendance, quizzes, batch leaderboard), timed quiz with server-side timer and auto-submit, result review, My quizzes (every attempt: marks, rank, vs class average, trend chart), My attendance (month calendar, every day, streaks), Time spent (class + quiz time, per week), resume upload, My payments (history and printable receipts) |
 
 The session lives in an httpOnly cookie. Pages check roles too, but the API is what enforces them.
 

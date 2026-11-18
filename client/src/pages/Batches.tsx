@@ -93,15 +93,17 @@ export function BatchFormModal({ open, onClose, batch }: { open: boolean; onClos
     endDate: batch?.endDate?.slice(0, 10) ?? "",
     mentorId: batch?.mentorId ?? "",
     fee: batch?.feePaise != null ? String(batch.feePaise / 100) : "",
+    classMinutes: batch?.classMinutes != null ? String(batch.classMinutes) : "",
   };
   const [form, setForm] = useState(initial);
   const save = useMutation({
     mutationFn: () => {
-      const { fee, ...fields } = form;
+      const { fee, classMinutes: cm, ...fields } = form;
       const feePaise = rupeesToPaise(fee);
+      const classMinutes = cm.trim() === "" ? null : Math.round(Number(cm));
       return batch
-        ? api.patch(`/batches/${batch.id}`, { ...fields, endDate: form.endDate || null, mentorId: form.mentorId || null, feePaise })
-        : api.post("/batches", { ...fields, endDate: form.endDate || undefined, mentorId: form.mentorId || undefined, feePaise: feePaise ?? undefined });
+        ? api.patch(`/batches/${batch.id}`, { ...fields, endDate: form.endDate || null, mentorId: form.mentorId || null, feePaise, classMinutes })
+        : api.post("/batches", { ...fields, endDate: form.endDate || undefined, mentorId: form.mentorId || undefined, feePaise: feePaise ?? undefined, classMinutes: classMinutes ?? undefined });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["batches"] });
@@ -139,6 +141,18 @@ export function BatchFormModal({ open, onClose, batch }: { open: boolean; onClos
           onChange={set("fee")}
           error={fe.feePaise}
           hint={form.fee && Number(form.fee) > 0 ? `Enrolling asks for ${fmtMoney(rupeesToPaise(form.fee))}, or can skip payment.` : "Leave empty for no fee."}
+        />
+        <TextField
+          label="Class length per day, in minutes (optional)"
+          type="number"
+          min={15}
+          max={600}
+          step={15}
+          placeholder="120"
+          value={form.classMinutes}
+          onChange={set("classMinutes")}
+          error={fe.classMinutes}
+          hint="Used to show students how much time they've spent in class. Leave empty if it varies."
         />
         <Field label="Mentor" error={fe.mentorId}>
           <Select value={form.mentorId} onChange={set("mentorId")}>

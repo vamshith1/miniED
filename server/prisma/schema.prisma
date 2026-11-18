@@ -156,15 +156,18 @@ model LeadActivity {
 // ─────────────────────────────── Batches & attendance ────────────────────────
 
 model Batch {
-  id        String    @id @default(cuid())
-  name      String    @unique // e.g. "FS-Web-Jan-2027"
-  course    String
-  startDate DateTime  @db.Date
-  endDate   DateTime? @db.Date
+  id           String    @id @default(cuid())
+  name         String    @unique // e.g. "FS-Web-Jan-2027"
+  course       String
+  startDate    DateTime  @db.Date
+  endDate      DateTime? @db.Date
   // Course fee in paise (₹1 = 100 paise), as an integer so money never has rounding errors.
   // Null = no fee, so enrolling doesn't ask for a payment.
-  feePaise  Int?
-  createdAt DateTime  @default(now())
+  feePaise     Int?
+  // How long one class day is, in minutes. Turns attended days into learning time.
+  // Null = not set, so the time-spent page shows days rather than guessing hours.
+  classMinutes Int?
+  createdAt    DateTime  @default(now())
 
   mentorId String?
   mentor   User?   @relation("BatchMentor", fields: [mentorId], references: [id], onDelete: SetNull)

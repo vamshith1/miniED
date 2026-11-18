@@ -58,3 +58,13 @@ export const fmtMoney = (paise: number | null | undefined, currency = "INR") =>
 
 /** "20000.5" (rupees typed in a form) -> 2000050 paise; "" -> null; invalid -> NaN. */
 export const rupeesToPaise = (rupees: string) => (rupees.trim() === "" ? null : Math.round(Number(rupees) * 100));
+
+/** 0 -> "0 min", 45 -> "45 min", 150 -> "2 h 30 min", 1200 -> "20 h". */
+export const fmtMinutes = (minutes: number | null | undefined) => {
+  if (minutes === null || minutes === undefined) return "—";
+  const m = Math.round(minutes);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
+};

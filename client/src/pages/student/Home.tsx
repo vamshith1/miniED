@@ -49,14 +49,19 @@ export function StudentHomePage() {
       />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Stat
-          label="Attendance"
-          value={fmtPct(attendance.data?.percentage)}
-          hint={attendance.data ? `${attendance.data.present + attendance.data.late} of ${attendance.data.total} days attended` : "…"}
-          tone={attendance.data?.percentage != null && attendance.data.percentage < 75 ? "bad" : undefined}
-        />
+        <Link to="/my-attendance" className="block rounded-lg">
+          <Stat
+            interactive
+            label="Attendance"
+            value={fmtPct(attendance.data?.percentage)}
+            hint={attendance.data ? `${attendance.data.present + attendance.data.late} of ${attendance.data.total} days attended · every day →` : "…"}
+            tone={attendance.data?.percentage != null && attendance.data.percentage < 75 ? "bad" : undefined}
+          />
+        </Link>
         <Stat label="Quizzes to take" value={quizzes.data ? pending.length : "…"} hint={quizzes.data ? `${quizzes.data.length} published so far` : undefined} />
+        <Link to="/my-quizzes" className="block rounded-lg">
         <Stat
+          interactive
           label="Quiz average"
           value={(() => {
             const done = quizzes.data?.filter((q) => q.myAttempt && q.myAttempt.status !== "IN_PROGRESS") ?? [];
@@ -64,8 +69,9 @@ export function StudentHomePage() {
             const max = done.reduce((s, q) => s + q.myAttempt!.maxScore, 0);
             return max ? fmtPct((score / max) * 100) : "—";
           })()}
-          hint="Across quizzes you've finished"
+          hint="Across quizzes you've finished · all marks →"
         />
+        </Link>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">

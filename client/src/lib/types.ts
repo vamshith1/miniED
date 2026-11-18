@@ -72,6 +72,7 @@ export interface Batch {
   startDate: string;
   endDate: string | null;
   feePaise: number | null; // course fee in paise (₹1 = 100); null = no fee
+  classMinutes: number | null; // length of one class day; null = not set
   mentorId: string | null;
   mentor: UserBrief | null;
   _count: { students: number };
@@ -332,4 +333,57 @@ export interface VerifyResult {
   payment: Payment;
   enrollment: Enrollment | null; // null when it had already been processed (e.g. by the webhook)
   alreadyProcessed: boolean;
+}
+
+// ---------- A student's own progress (/api/progress/...)
+
+export interface QuizHistoryItem {
+  attemptId: string;
+  quizId: string;
+  title: string;
+  batchName: string;
+  status: "SUBMITTED" | "EXPIRED";
+  takenAt: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  timeTakenMs: number;
+  durationSeconds: number;
+  rank: number | null;
+  outOf: number;
+  classAverage: number | null;
+}
+
+export interface QuizHistory {
+  summary: {
+    taken: number;
+    averagePercentage: number | null;
+    bestPercentage: number | null;
+    latestPercentage: number | null;
+    firstPlaces: number;
+    totalTimeMs: number;
+  };
+  items: QuizHistoryItem[]; // newest first
+}
+
+export type AttendanceMark = "PRESENT" | "LATE" | "ABSENT";
+
+export interface AttendanceHistory {
+  batch: { name: string; course: string; startDate: string; endDate: string | null; classMinutes: number | null } | null;
+  summary: { marked: number; present: number; late: number; absent: number; percentage: number | null; currentStreak: number; longestStreak: number };
+  records: { date: string; status: AttendanceMark; batchName: string }[]; // oldest first
+}
+
+export interface TimeSpent {
+  classLengthKnown: boolean;
+  totals: {
+    totalMinutes: number;
+    classMinutes: number | null;
+    quizMinutes: number;
+    daysAttended: number;
+    quizzesTaken: number;
+    thisWeekMinutes: number;
+    averagePerActiveWeekMinutes: number;
+  };
+  weeks: { weekStart: string; classMinutes: number; quizMinutes: number; daysAttended: number; quizzes: number }[];
 }
