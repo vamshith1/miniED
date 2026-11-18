@@ -160,13 +160,31 @@ export async function startWorker() {
   worker.on("error", (err) => console.error("Email worker error:", err.message));
   await worker.waitUntilReady();
 
-  // Idempotent: creates the schedule, or updates it if FOLLOW_UP_CRON changed.
-  await getQueue().upsertJobScheduler(
-    SCHEDULER_ID,
-    { pattern: env.FOLLOW_UP_CRON, tz: Intl.DateTimeFormat().resolvedOptions().timeZone },
-    { name: "follow-up-scan", opts: { attempts: 3, backoff: { type: "exponential", delay: 60_000 } } },
-  );
+  await scheduleFollowUps();
   console.log(`Email worker started (follow-up reminders: "${env.FOLLOW_UP_CRON}")`);
+}
+
+// BullMQ's "job ID already exists" code: the scheduler's next run is already queued.
+const JOB_SCHEDULER_JOB_ID_EXISTS = -10;
+
+/**
+ * Creates the daily schedule, or updates it if FOLLOW_UP_CRON changed.
+ * On restart the Postgres backend refuses to re-add the next run when it's already
+ * queued (Redis treats that as an update), so that error means "already scheduled".
+ * Any other failure is logged rather than stopping the app: emails still send,
+ * and the GitHub Action can still trigger the reminders.
+ */
+async function scheduleFollowUps() {
+  try {
+    await getQueue().upsertJobScheduler(
+      SCHEDULER_ID,
+      { pattern: env.FOLLOW_UP_CRON, tz: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      { name: "follow-up-scan", opts: { attempts: 3, backoff: { type: "exponential", delay: 60_000 } } },
+    );
+  } catch (err) {
+    if ((err as { code?: number }).code === JOB_SCHEDULER_JOB_ID_EXISTS) return;
+    console.error("Could not schedule the daily follow-up reminders:", (err as Error).message);
+  }
 }
 
 export async function closeQueue() {

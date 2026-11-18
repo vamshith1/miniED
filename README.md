@@ -84,8 +84,22 @@ npm install
 npm run dev
 ```
 
-Run the end-to-end smoke tests (261 checks) with `npm run test:smoke` while the API is running.
-See [server/tests/smoke](server/tests/smoke/README.md).
+### Tests
+
+```bash
+cd server
+npm test                           # Vitest + Supertest: unit and API tests, no server needed
+npm run test:smoke                 # 261 end-to-end checks against a running API (npm run dev)
+```
+
+`npm test` needs only the database server (Docker or `npm run db:local`). It runs against its own
+`miniedcrm_test` database on that server (or `TEST_DATABASE_URL`), creates it and applies the migrations,
+and empties it at the start of every run, so your development data is never touched. Redis isn't needed and
+no email is sent. See [server/tests/smoke](server/tests/smoke/README.md) for the smoke tests.
+
+**CI.** [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to `main` and every pull request:
+typecheck and build of both apps, `npm test`, then the built API is started against a fresh Postgres and
+`npm run test:smoke` runs against it.
 
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
 `Cache: ... using in-memory cache` and caches in memory instead, and the email queue uses Postgres.
@@ -300,7 +314,8 @@ on its timeline.
 - [x] **Phase 6, Email queue:** BullMQ jobs for welcome, quiz result and daily follow-up emails, with retries
 - [x] **Phase 7, Dashboard, uploads and frontend:** admin charts, resume upload with type/size checks, React UI
 - [x] **Change and reset password** by email, signing out other sessions
-- [ ] **Phase 8, Production:** rate limiting ✓, cookie sessions ✓, free-hosting build ✓ (Render + Neon), automated tests, GitHub Actions CI, deploy
+- [x] **Phase 8, Production:** rate limiting, cookie sessions, free-hosting build (Render + Neon), Vitest + Supertest suite, GitHub Actions CI
+- [ ] **Go live:** create the Neon, Brevo and Render accounts and deploy, following [DEPLOY.md](DEPLOY.md)
 
 ## Database design notes
 
