@@ -5,7 +5,7 @@ import { api, downloadFile } from "../lib/api";
 import { useUser } from "../lib/auth";
 import { fmtBytes, fmtDate } from "../lib/format";
 import type { DocumentInfo } from "../lib/types";
-import { Badge, Button, Card, EmptyState, ErrorBox, PageHeader, QueryState, cx } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorBox, PageHeader, QueryState, cx, askConfirm } from "../components/ui";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = ".pdf,.docx,.doc";
@@ -65,7 +65,7 @@ export function DocumentsPage() {
           <DropZone onFile={(f) => send(f, "RESUME")} busy={upload.isPending && upload.variables?.kind === "RESUME"} label={resume ? "Upload a new version (replaces the current one)" : "Upload your resume"} />
           {lastKind === "RESUME" && <UploadMessages localError={localError} error={upload.error} replaced={upload.data?.replaced} />}
           <QueryState query={docs}>
-            {() => (resume ? <DocRow doc={resume} onDownload={setDownloadError} onDelete={() => confirm("Delete your resume?") && remove.mutate(resume)} /> : <p className="mt-3 text-sm text-muted">No resume uploaded yet.</p>)}
+            {() => (resume ? <DocRow doc={resume} onDownload={setDownloadError} onDelete={async () => (await askConfirm("Delete your resume?", { confirmLabel: "Delete", danger: true })) && remove.mutate(resume)} /> : <p className="mt-3 text-sm text-muted">No resume uploaded yet.</p>)}
           </QueryState>
         </Card>
 
@@ -77,7 +77,7 @@ export function DocumentsPage() {
           ) : (
             <div className="mt-2">
               {others.map((d) => (
-                <DocRow key={d.id} doc={d} onDownload={setDownloadError} onDelete={() => confirm(`Delete ${d.originalName}?`) && remove.mutate(d)} />
+                <DocRow key={d.id} doc={d} onDownload={setDownloadError} onDelete={async () => (await askConfirm(`Delete ${d.originalName}?`, { confirmLabel: "Delete", danger: true })) && remove.mutate(d)} />
               ))}
             </div>
           )}

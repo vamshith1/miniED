@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApiError } from "./lib/api";
 import { AuthProvider } from "./lib/auth";
 import { App } from "./App";
+import { ConfirmHost } from "./components/ui";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <AuthProvider>
           <App />
+          <ConfirmHost />
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

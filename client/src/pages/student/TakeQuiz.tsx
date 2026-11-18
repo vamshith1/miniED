@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Timer } from "lucide-react";
 import { ApiError, api } from "../../lib/api";
 import type { StartedAttempt } from "../../lib/types";
-import { Button, Card, ErrorBox, Spinner, cx } from "../../components/ui";
+import { Button, Card, ErrorBox, Spinner, cx, askConfirm } from "../../components/ui";
 
 // Answers are kept in sessionStorage so a reload doesn't lose them.
 // The timer itself is the server's: expiresAt comes from startedAt.
@@ -136,7 +136,7 @@ function Attempt({ attempt }: { attempt: StartedAttempt }) {
           </span>
           <Button
             loading={submit.isPending}
-            onClick={() => (answered === total || confirm(`${total - answered} question(s) unanswered. They'll count as wrong. Submit anyway?`)) && doSubmit()}
+            onClick={async () => (answered === total || (await askConfirm(`${total - answered} question(s) unanswered. They'll count as wrong. Submit anyway?`, { confirmLabel: "Submit" }))) && doSubmit()}
           >
             Submit
           </Button>

@@ -5,7 +5,7 @@ import { api, qs } from "../../lib/api";
 import { useUser } from "../../lib/auth";
 import { fmtDate, titleCase } from "../../lib/format";
 import type { Paginated, Role, User } from "../../lib/types";
-import { Badge, Button, Card, EmptyState, ErrorBox, Field, Modal, PageHeader, Pagination, QueryState, Select, Table, Td, TextField, Th, Tabs, fieldErrorsOf } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorBox, Field, Modal, PageHeader, Pagination, QueryState, Select, Table, Td, TextField, Th, Tabs, fieldErrorsOf, askConfirm } from "../../components/ui";
 
 type Filter = "ALL" | Role;
 
@@ -83,7 +83,7 @@ export function UsersPage() {
                               size="sm"
                               variant={u.isActive ? "danger" : "secondary"}
                               loading={toggle.isPending && toggle.variables?.id === u.id}
-                              onClick={() => (!u.isActive || confirm(`Deactivate ${u.name}? They'll be signed out and can't sign in.`)) && toggle.mutate(u)}
+                              onClick={async () => (!u.isActive || (await askConfirm(`Deactivate ${u.name}? They'll be signed out and can't sign in.`, { confirmLabel: "Deactivate", danger: true }))) && toggle.mutate(u)}
                             >
                               {u.isActive ? "Deactivate" : "Reactivate"}
                             </Button>

@@ -5,7 +5,7 @@ import { ArrowLeft, GraduationCap, Trash2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { fmtDateTime, relative, titleCase } from "../../lib/format";
 import { STAGES, type Batch, type Lead, type LeadActivity, type LeadNote, type LeadStage, type Paginated } from "../../lib/types";
-import { Badge, Button, Card, EmptyState, ErrorBox, Field, Modal, PageHeader, QueryState, Select, Spinner, TextField, Textarea, fieldErrorsOf, stageTone } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorBox, Field, Modal, PageHeader, QueryState, Select, Spinner, TextField, Textarea, fieldErrorsOf, stageTone, askConfirm } from "../../components/ui";
 import { FollowUp, useAssignees } from "./Leads";
 
 export function LeadDetailPage() {
@@ -56,7 +56,7 @@ function LeadView({ lead }: { lead: Lead }) {
               <Button
                 variant="danger"
                 loading={remove.isPending}
-                onClick={() => confirm(`Delete ${lead.name}? Their notes and timeline are deleted too.`) && remove.mutate()}
+                onClick={async () => (await askConfirm(`Delete ${lead.name}? Their notes and timeline are deleted too.`, { confirmLabel: "Delete", danger: true })) && remove.mutate()}
               >
                 <Trash2 className="size-4" /> Delete
               </Button>

@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Plus, Send, Trash2, X } from "lucide-react";
 import { api } from "../lib/api";
 import { fmtDateTime, fmtDuration, fmtSeconds } from "../lib/format";
 import type { Attempt, Batch, FullQuiz } from "../lib/types";
-import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, PageHeader, QueryState, Table, Tabs, Td, TextField, Textarea, Th, cx } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, PageHeader, QueryState, Table, Tabs, Td, TextField, Textarea, Th, cx, askConfirm } from "../components/ui";
 import { QuizLeaderboardTable } from "../components/Leaderboards";
 
 // The draft as edited in the form (no ids: PUT replaces every question).
@@ -142,7 +142,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
         subtitle={`${quiz.batch.name} · only you and admins can see drafts.`}
         actions={
           <>
-            <Button variant="danger" loading={remove.isPending} onClick={() => confirm("Delete this draft?") && remove.mutate()}>
+            <Button variant="danger" loading={remove.isPending} onClick={async () => (await askConfirm("Delete this draft?", { confirmLabel: "Delete", danger: true })) && remove.mutate()}>
               <Trash2 className="size-4" /> Delete
             </Button>
             <Button variant="secondary" disabled={!dirty || issues.length > 0} loading={save.isPending} onClick={() => save.mutate()}>
@@ -151,7 +151,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
             <Button
               disabled={issues.length > 0 || draft.questions.length === 0}
               loading={publish.isPending}
-              onClick={() => confirm("Publish to students? You won't be able to edit it afterwards.") && publish.mutate()}
+              onClick={async () => (await askConfirm("Publish to students? You won't be able to edit it afterwards.", { confirmLabel: "Publish" })) && publish.mutate()}
             >
               <Send className="size-4" /> Publish
             </Button>

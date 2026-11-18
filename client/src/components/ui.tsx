@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { Loader2, X } from "lucide-react";
 import { ApiError } from "../lib/api";
 
@@ -18,12 +18,19 @@ export function Button({ variant = "primary", size = "md", loading, disabled, cl
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        // Hover lifts the button a little and deepens its colour; pressing pushes it back down.
+        // Disabled buttons stay flat so they don't look clickable.
+        "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium select-none",
+        "transition-all duration-150 ease-out enabled:hover:-translate-y-px enabled:active:translate-y-0 enabled:active:scale-[0.97]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1",
+        "disabled:cursor-not-allowed disabled:opacity-55",
         size === "sm" ? "h-8 px-2.5 text-sm" : "h-9 px-3.5 text-sm",
-        variant === "primary" && "bg-brand text-white hover:bg-brand-strong",
-        variant === "secondary" && "border border-line bg-surface text-ink hover:bg-canvas",
-        variant === "ghost" && "text-muted hover:bg-canvas hover:text-ink",
-        variant === "danger" && "border border-bad/30 bg-surface text-bad hover:bg-bad-soft",
+        variant === "primary" &&
+          "bg-linear-to-b from-brand to-brand-strong text-white shadow-sm shadow-brand/25 enabled:hover:shadow-md enabled:hover:shadow-brand/35 enabled:hover:brightness-110",
+        variant === "secondary" &&
+          "border border-line bg-surface text-ink shadow-xs enabled:hover:border-brand/40 enabled:hover:bg-brand-soft/50 enabled:hover:text-brand-strong enabled:hover:shadow-sm",
+        variant === "ghost" && "text-muted enabled:hover:bg-brand-soft/60 enabled:hover:text-brand-strong",
+        variant === "danger" && "border border-bad/30 bg-surface text-bad enabled:hover:border-bad/60 enabled:hover:bg-bad-soft enabled:hover:shadow-sm",
         className,
       )}
     >
@@ -174,14 +181,79 @@ export function Pagination({ page, totalPages, onPage }: { page: number; totalPa
 }
 
 // Big number with a label, for dashboards.
-export function Stat({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: "bad" | "good" }) {
+export function Stat({
+  label,
+  value,
+  hint,
+  tone,
+  icon,
+  interactive,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+  tone?: "bad" | "good";
+  icon?: ReactNode;
+  interactive?: boolean; // wrapped in a link: show it reacts to the pointer
+}) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
+    <div
+      className={cx(
+        "group h-full rounded-lg border border-line bg-surface p-4 transition-all duration-200",
+        interactive && "hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md hover:shadow-brand/10",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
+        {icon && (
+          <span
+            className={cx(
+              "grid size-8 shrink-0 place-items-center rounded-md transition-transform duration-200 group-hover:scale-110",
+              tone === "bad" ? "bg-bad-soft text-bad" : tone === "good" ? "bg-good-soft text-good" : "bg-brand-soft text-brand-strong",
+            )}
+          >
+            {icon}
+          </span>
+        )}
+      </div>
       <p className={cx("mt-1 text-2xl font-semibold tabular-nums", tone === "bad" ? "text-bad" : tone === "good" ? "text-good" : "text-ink")}>{value}</p>
       {hint && <p className="mt-0.5 text-xs text-faint">{hint}</p>}
     </div>
   );
+}
+
+/**
+ * Counts up from the previous value to `value` (from 0 on first show), so changes on
+ * the dashboard are visible. Shows "—" for null.
+ */
+export function AnimatedNumber({ value, format = (n) => Math.round(n).toLocaleString(), duration = 700 }: { value: number | null; format?: (n: number) => string; duration?: number }) {
+  const [shown, setShown] = useState(0);
+  const from = useRef(0);
+  useEffect(() => {
+    if (value === null) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const start = from.current;
+    if (reduce || start === value) {
+      from.current = value;
+      setShown(value);
+      return;
+    }
+    const t0 = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setShown(start + (value - start) * eased);
+      if (p < 1) frame = requestAnimationFrame(step);
+      else from.current = value;
+    };
+    frame = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(frame);
+      from.current = value;
+    };
+  }, [value, duration]);
+  return <>{value === null ? "—" : format(shown)}</>;
 }
 
 // ---------- Tables
@@ -189,7 +261,7 @@ export function Stat({ label, value, hint, tone }: { label: string; value: React
 export function Table({ children }: { children: ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px] text-left text-sm">{children}</table>
+      <table className="w-full min-w-[560px] text-left text-sm [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-brand-soft/40">{children}</table>
     </div>
   );
 }
@@ -229,6 +301,55 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
         </div>
       )}
     </dialog>
+  );
+}
+
+// ---------- Confirmation dialog
+
+type ConfirmRequest = { message: string; confirmLabel: string; danger: boolean; resolve: (ok: boolean) => void };
+let showConfirm: ((r: ConfirmRequest) => void) | null = null;
+
+/**
+ * Asks "are you sure?" in the app's own dialog and resolves to true or false.
+ * Used instead of window.confirm(), which some embedded browsers block (it then
+ * returns false at once, so the action silently never happens).
+ */
+export function askConfirm(message: string, opts: { confirmLabel?: string; danger?: boolean } = {}) {
+  return new Promise<boolean>((resolve) => {
+    if (!showConfirm) return resolve(window.confirm(message)); // ConfirmHost isn't mounted (shouldn't happen)
+    showConfirm({ message, confirmLabel: opts.confirmLabel ?? "Confirm", danger: opts.danger ?? false, resolve });
+  });
+}
+
+/** Rendered once at the app root; shows the dialogs that askConfirm() requests. */
+export function ConfirmHost() {
+  const [req, setReq] = useState<ConfirmRequest | null>(null);
+  useEffect(() => {
+    showConfirm = (r) =>
+      setReq((current) => {
+        current?.resolve(false); // a newer question replaces an unanswered one
+        return r;
+      });
+    return () => {
+      showConfirm = null;
+    };
+  }, []);
+  const answer = (ok: boolean) => {
+    req?.resolve(ok);
+    setReq(null);
+  };
+  return (
+    <Modal open={!!req} onClose={() => answer(false)} title="Are you sure?">
+      <p className="text-sm">{req?.message}</p>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="secondary" onClick={() => answer(false)}>
+          Cancel
+        </Button>
+        <Button variant={req?.danger ? "danger" : "primary"} onClick={() => answer(true)} autoFocus>
+          {req?.confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

@@ -38,8 +38,10 @@ export function Layout() {
           onClick={() => setOpen(false)}
           className={({ isActive }) =>
             cx(
-              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium",
-              isActive ? "bg-brand-soft text-brand-strong" : "text-muted hover:bg-canvas hover:text-ink",
+              "group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+              isActive
+                ? "bg-brand-soft text-brand-strong before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-brand"
+                : "text-muted hover:translate-x-0.5 hover:bg-brand-soft/60 hover:text-brand-strong",
             )
           }
         >
@@ -73,7 +75,7 @@ export function Layout() {
 
   const brand = (
     <div className="flex items-center gap-2 px-3">
-      <span className="grid size-7 place-items-center rounded-md bg-brand text-white">
+      <span className="grid size-7 place-items-center rounded-md bg-linear-to-br from-brand to-brand-strong text-white shadow-sm shadow-brand/30">
         <BookOpen className="size-4" />
       </span>
       <span className="font-semibold text-ink">MiniEdCRM</span>
@@ -92,16 +94,20 @@ export function Layout() {
       </aside>
 
       {/* Mobile top bar + drawer */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-surface px-4 py-2.5 md:hidden">
-        {brand}
-        <button onClick={() => setOpen(true)} className="rounded p-1.5 text-muted hover:bg-canvas" aria-label="Open menu">
+      <header className="sticky top-0 z-20 flex items-center gap-1 border-b border-line bg-surface/90 px-2 py-2.5 backdrop-blur md:hidden">
+        <button
+          onClick={() => setOpen(true)}
+          className="rounded-md p-1.5 text-muted transition-colors hover:bg-brand-soft hover:text-brand-strong active:scale-95"
+          aria-label="Open menu"
+        >
           <Menu className="size-5" />
         </button>
+        {brand}
       </header>
       {open && (
         <div className="fixed inset-0 z-30 md:hidden">
-          <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 left-0 flex w-64 flex-col justify-between bg-surface px-3 py-4">
+          <div className="animate-fade-in absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
+          <div className="animate-slide-in-left absolute inset-y-0 left-0 flex w-64 flex-col justify-between bg-surface px-3 py-4 shadow-xl">
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 {brand}

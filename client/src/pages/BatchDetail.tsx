@@ -6,7 +6,7 @@ import { api, downloadFile } from "../lib/api";
 import { useUser } from "../lib/auth";
 import { fmtBytes, fmtDate, fmtDay, fmtPct, fmtSeconds, todayYmd } from "../lib/format";
 import type { AttendanceDay, AttendanceStatus, Batch, BatchAttendanceSummary, DocumentInfo, Paginated, QuizSummary, Student, User } from "../lib/types";
-import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, QueryState, Select, Spinner, Table, Tabs, Td, Th, cx } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, QueryState, Select, Spinner, Table, Tabs, Td, Th, cx, askConfirm } from "../components/ui";
 import { BatchLeaderboardTable } from "../components/Leaderboards";
 import { BatchFormModal, batchStatus } from "./Batches";
 
@@ -140,7 +140,7 @@ function StudentsTab({ batch }: { batch: Batch }) {
                             size="sm"
                             variant="ghost"
                             aria-label={`Remove ${s.name} from batch`}
-                            onClick={() => confirm(`Remove ${s.name} from ${batch.name}? Their account stays.`) && remove.mutate(s)}
+                            onClick={async () => (await askConfirm(`Remove ${s.name} from ${batch.name}? Their account stays.`, { confirmLabel: "Remove", danger: true })) && remove.mutate(s)}
                           >
                             <UserMinus className="size-4" />
                           </Button>
