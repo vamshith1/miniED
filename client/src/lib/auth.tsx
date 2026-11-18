@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api, setUnauthorizedHandler } from "./api";
 import type { User } from "./types";
+import { clearAllBackups } from "./draft-backup";
 
 /**
  * The session is an httpOnly cookie set by the server: this code never sees
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     api.post("/auth/logout").catch(() => {}); // clears the cookie; nothing to do if it fails
+    clearAllBackups(); // unsaved drafts stay private on shared computers
     forget();
   }, [forget]);
 

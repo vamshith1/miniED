@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Cloud, CloudOff, History, Loader2, Plus, RotateCcw, Send, Trash2, X } from "lucide-react";
 import { api } from "../lib/api";
-import { fmtDateTime, fmtDuration, fmtSeconds } from "../lib/format";
+import { fmtDateTime, fmtDuration, fmtSeconds, relative } from "../lib/format";
+import { clearBackup, readBackup, useLeaveWarning, writeBackup, type Backup } from "../lib/draft-backup";
 import type { Attempt, Batch, FullQuiz } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, PageHeader, QueryState, Table, Tabs, Td, TextField, Textarea, Th, cx, askConfirm } from "../components/ui";
 import { QuizLeaderboardTable } from "../components/Leaderboards";
@@ -46,26 +47,85 @@ export function QuizEditorPage() {
   return id ? <ExistingQuiz id={id} /> : <NewQuiz />;
 }
 
+// Wait this long after the last edit before autosaving.
+const AUTOSAVE_MS = 1500;
+
+const blankDraft = (): Draft => ({ title: "", description: "", minutes: 10, questions: [blankQuestion()] });
+const BLANK_JSON = JSON.stringify(blankDraft());
+
+/** Offers back unsaved work found on this device (after a reload, crash or closed tab). */
+function RestoreBanner({ backup, onRestore, onDiscard }: { backup: Backup<Draft>; onRestore: () => void; onDiscard: () => void }) {
+  return (
+    <div className="animate-fade-up mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand-soft px-4 py-3" role="status">
+      <p className="flex items-center gap-2 text-sm text-ink">
+        <History className="size-4 shrink-0 text-brand-strong" />
+        <span>
+          Unsaved changes from <strong>{relative(backup.savedAt)}</strong> were found on this device.
+        </span>
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" variant="secondary" onClick={onDiscard}>
+          Discard
+        </Button>
+        <Button size="sm" onClick={onRestore}>
+          <RotateCcw className="size-4" /> Restore them
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function NewQuiz() {
   const [params] = useSearchParams();
   const batchId = params.get("batchId") ?? "";
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const backupKey = `new-quiz:${batchId}`;
   const batch = useQuery({ queryKey: ["batch", batchId], queryFn: () => api.get<{ batch: Batch }>(`/batches/${batchId}`).then((r) => r.batch), enabled: !!batchId });
-  const [draft, setDraft] = useState<Draft>({ title: "", description: "", minutes: 10, questions: [blankQuestion()] });
+  const [draft, setDraft] = useState<Draft>(blankDraft);
+  const [restorable, setRestorable] = useState(() => {
+    const b = readBackup<Draft>(backupKey);
+    return b && JSON.stringify(b.draft) !== BLANK_JSON ? b : null;
+  });
+  const draftJson = JSON.stringify(draft);
+  const started = draftJson !== BLANK_JSON;
   const create = useMutation({
     mutationFn: () => api.post<{ quiz: FullQuiz }>("/quizzes", { batchId, ...toBody(draft) }),
     onSuccess: ({ quiz }) => {
+      clearBackup(backupKey);
       qc.invalidateQueries({ queryKey: ["quizzes", batchId] });
       navigate(`/quizzes/${quiz.id}`, { replace: true });
     },
   });
+
+  // Keep a copy on this device while it's being written (left alone until a found copy is restored or discarded).
+  useEffect(() => {
+    if (restorable || !batchId || create.isSuccess) return;
+    if (started) writeBackup(backupKey, draft);
+    else clearBackup(backupKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftJson, restorable, backupKey]);
+  useLeaveWarning(started && !create.isSuccess);
+
   if (!batchId) return <EmptyState title="Open a batch first">Quizzes are created from a batch's Quizzes tab.</EmptyState>;
   const issues = problems(draft);
   return (
     <>
       <BackToBatch batchId={batchId} />
       <PageHeader title="New quiz" subtitle={batch.data ? `For ${batch.data.name}. It stays a draft, hidden from students, until you publish it.` : undefined} />
+      {restorable && (
+        <RestoreBanner
+          backup={restorable}
+          onRestore={() => {
+            setDraft(restorable.draft);
+            setRestorable(null);
+          }}
+          onDiscard={() => {
+            clearBackup(backupKey);
+            setRestorable(null);
+          }}
+        />
+      )}
       <DraftForm draft={draft} onChange={setDraft} />
       <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
         {issues.length > 0 && <p className="text-sm text-muted">{issues[0]}</p>}
@@ -78,9 +138,20 @@ function NewQuiz() {
   );
 }
 
-function BackToBatch({ batchId }: { batchId: string }) {
+// `warn`: ask before leaving, because some changes can't be saved yet.
+function BackToBatch({ batchId, warn }: { batchId: string; warn?: string }) {
+  const navigate = useNavigate();
+  const to = `/batches/${batchId}?tab=quizzes`;
   return (
-    <Link to={`/batches/${batchId}?tab=quizzes`} className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+    <Link
+      to={to}
+      onClick={async (e) => {
+        if (!warn) return;
+        e.preventDefault();
+        if (await askConfirm(warn, { confirmLabel: "Leave anyway", danger: true })) navigate(to);
+      }}
+      className="mb-3 inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-brand-strong"
+    >
       <ArrowLeft className="size-4" /> Batch quizzes
     </Link>
   );
@@ -92,8 +163,14 @@ function ExistingQuiz({ id }: { id: string }) {
     <QueryState query={quiz}>
       {(q) => (
         <>
-          <BackToBatch batchId={q.batch.id} />
-          {q.isPublished ? <PublishedQuiz quiz={q} /> : <DraftQuiz key={q.id} quiz={q} />}
+          {q.isPublished ? (
+            <>
+              <BackToBatch batchId={q.batch.id} />
+              <PublishedQuiz quiz={q} />
+            </>
+          ) : (
+            <DraftQuiz key={q.id} quiz={q} />
+          )}
         </>
       )}
     </QueryState>
@@ -103,36 +180,105 @@ function ExistingQuiz({ id }: { id: string }) {
 function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const backupKey = `quiz:${quiz.id}`;
   const [draft, setDraft] = useState(() => toDraft(quiz));
   const [savedJson, setSavedJson] = useState(() => JSON.stringify(toDraft(quiz)));
-  const dirty = JSON.stringify(draft) !== savedJson;
+  // A copy found on this device that differs from the server (say, after a reload mid-edit).
+  const [restorable, setRestorable] = useState(() => {
+    const b = readBackup<Draft>(backupKey);
+    return b && JSON.stringify(b.draft) !== JSON.stringify(toDraft(quiz)) ? b : null;
+  });
+  const draftJson = JSON.stringify(draft);
+  const dirty = draftJson !== savedJson;
   const issues = problems(draft);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["quiz", quiz.id] });
     qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
   };
 
+  // Saves a snapshot and remembers exactly what was saved, so edits made while
+  // the request is in flight still count as unsaved.
+  const putDraft = async (d: Draft) => {
+    const res = await api.put<{ quiz: FullQuiz }>(`/quizzes/${quiz.id}`, toBody(d));
+    qc.setQueryData(["quiz", quiz.id], res.quiz); // coming back to this page shows what was saved
+    return JSON.stringify(d);
+  };
   const save = useMutation({
-    mutationFn: () => api.put(`/quizzes/${quiz.id}`, toBody(draft)),
-    onSuccess: () => setSavedJson(JSON.stringify(draft)),
+    mutationFn: putDraft,
+    onSuccess: (json) => {
+      setSavedJson(json);
+      qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
+    },
   });
   const publish = useMutation({
     mutationFn: async () => {
-      if (dirty) await api.put(`/quizzes/${quiz.id}`, toBody(draft));
+      if (dirty) await putDraft(draft);
       return api.post(`/quizzes/${quiz.id}/publish`);
     },
-    onSuccess: refresh,
+    onSuccess: () => {
+      clearBackup(backupKey);
+      refresh();
+    },
   });
   const remove = useMutation({
     mutationFn: () => api.del(`/quizzes/${quiz.id}`),
     onSuccess: () => {
+      clearBackup(backupKey);
       qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
       navigate(`/batches/${quiz.batch.id}?tab=quizzes`);
     },
   });
 
+  // 1. Keep a copy on this device of anything not yet saved (left alone while a found copy awaits a decision).
+  useEffect(() => {
+    if (restorable || publish.isSuccess || remove.isSuccess) return;
+    if (dirty) writeBackup(backupKey, draft);
+    else clearBackup(backupKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftJson, savedJson, restorable]);
+
+  // 2. Autosave a valid draft once typing pauses. A failed save isn't retried until the draft changes.
+  const failedJson = save.isError ? JSON.stringify(save.variables) : null;
+  const canAutosave = dirty && issues.length === 0 && !restorable && !save.isPending && !publish.isPending && !remove.isPending && failedJson !== draftJson;
+  useEffect(() => {
+    if (!canAutosave) return;
+    const id = setTimeout(() => save.mutate(draft), AUTOSAVE_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAutosave, draftJson]);
+
+  // 3. Closing or reloading the tab with unsaved changes asks first.
+  useLeaveWarning(dirty);
+
+  // 4. Leaving the page inside the app: save valid pending changes on the way out.
+  const latest = useRef({ draft, dirty, valid: issues.length === 0, done: false });
+  latest.current = { draft, dirty, valid: issues.length === 0, done: publish.isSuccess || remove.isSuccess };
+  useEffect(
+    () => () => {
+      const l = latest.current;
+      if (l.dirty && l.valid && !l.done) {
+        putDraft(l.draft)
+          .then(() => {
+            clearBackup(backupKey);
+            qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
+          })
+          .catch(() => {}); // the copy on this device is still there
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   return (
     <>
+      <BackToBatch
+        batchId={quiz.batch.id}
+        warn={
+          dirty && issues.length > 0
+            ? `Your latest changes can't be saved yet (${issues[0].replace(/\.$/, "")}). They stay on this device and are offered back when you return. Leave anyway?`
+            : undefined
+        }
+      />
       <PageHeader
         title={
           <span className="flex items-center gap-2">
@@ -145,11 +291,11 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
             <Button variant="danger" loading={remove.isPending} onClick={async () => (await askConfirm("Delete this draft?", { confirmLabel: "Delete", danger: true })) && remove.mutate()}>
               <Trash2 className="size-4" /> Delete
             </Button>
-            <Button variant="secondary" disabled={!dirty || issues.length > 0} loading={save.isPending} onClick={() => save.mutate()}>
-              {dirty ? "Save draft" : "Saved"}
+            <Button variant="secondary" disabled={!dirty || issues.length > 0 || !!restorable} loading={save.isPending} onClick={() => save.mutate(draft)}>
+              {dirty ? "Save now" : "Saved"}
             </Button>
             <Button
-              disabled={issues.length > 0 || draft.questions.length === 0}
+              disabled={issues.length > 0 || draft.questions.length === 0 || !!restorable}
               loading={publish.isPending}
               onClick={async () => (await askConfirm("Publish to students? You won't be able to edit it afterwards.", { confirmLabel: "Publish" })) && publish.mutate()}
             >
@@ -158,12 +304,44 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
           </>
         }
       />
+      {restorable && (
+        <RestoreBanner
+          backup={restorable}
+          onRestore={() => {
+            setDraft(restorable.draft);
+            setRestorable(null);
+          }}
+          onDiscard={() => {
+            clearBackup(backupKey);
+            setRestorable(null);
+          }}
+        />
+      )}
       <div className="mb-3 space-y-2">
-        <ErrorBox error={save.error ?? publish.error ?? remove.error} />
-        {issues.length > 0 && <p className="text-sm text-warn">{issues[0]}</p>}
+        {!restorable && <SaveStatus dirty={dirty} saving={save.isPending} failed={failedJson === draftJson} issue={issues[0]} />}
+        <ErrorBox error={publish.error ?? remove.error ?? (failedJson === draftJson ? save.error : null)} />
       </div>
       <DraftForm draft={draft} onChange={setDraft} />
     </>
+  );
+}
+
+// One line that always says where the work stands.
+function SaveStatus({ dirty, saving, failed, issue }: { dirty: boolean; saving: boolean; failed: boolean; issue?: string }) {
+  const [text, tone, icon] = saving
+    ? ["Saving…", "text-muted", <Loader2 key="i" className="size-4 animate-spin" />]
+    : failed
+      ? ["Couldn't save. Your changes are kept on this device; edit again or press Save now to retry.", "text-bad", <CloudOff key="i" className="size-4" />]
+      : dirty && issue
+        ? [`Not saved yet: ${issue}`, "text-warn", <AlertTriangle key="i" className="size-4" />]
+        : dirty
+          ? ["Unsaved changes, saving automatically…", "text-muted", <Cloud key="i" className="size-4" />]
+          : ["All changes saved", "text-good", <Check key="i" className="size-4" />];
+  return (
+    <p className={cx("flex items-center gap-1.5 text-sm transition-colors", tone)} aria-live="polite">
+      {icon}
+      {text}
+    </p>
   );
 }
 
