@@ -1,6 +1,7 @@
 import { Router, type Response } from "express";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { param } from "../../lib/params.js";
+import { limits } from "../../middleware/rate-limit.js";
 import { createQuizSchema, listQuizzesQuery, replaceQuizSchema, submitSchema } from "./quizzes.schemas.js";
 import * as quizzes from "./quizzes.service.js";
 import * as attempts from "./quizzes.attempts.js";
@@ -56,7 +57,7 @@ quizzesRouter.post("/:id/start", student, async (req, res) => {
   res.json(await attempts.startAttempt(param(req, "id"), req.user!));
 });
 
-quizzesRouter.post("/:id/submit", student, async (req, res) => {
+quizzesRouter.post("/:id/submit", student, limits.quizSubmit, async (req, res) => {
   res.json(await attempts.submitAttempt(param(req, "id"), submitSchema.parse(req.body), req.user!));
 });
 

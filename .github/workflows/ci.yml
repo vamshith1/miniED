@@ -99,3 +99,44 @@ jobs:
       - name: API log
         if: always()
         run: cat api.log || true
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image used by docker-compose.yml
+        run: docker build -t miniedcrm:ci .
+
+  # Deploys to Render only when everything above passed on main.
+  # Render's own auto-deploy is off (render.yaml), so a failing commit never goes live.
+  deploy:
+    name: Deploy
+    needs: [client, server, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Trigger the Render deploy
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_URL isn't set, so nothing was deployed. See DEPLOY.md."
+            exit 0
+          fi
+          curl -fsS -X POST "$DEPLOY_HOOK" > /dev/null
+          echo "Deploy started on Render."
+          if [ -n "$APP_URL" ]; then
+            # Render swaps to the new version only once its health check passes; wait for the site to answer.
+            sleep 120
+            for i in $(seq 1 30); do
+              if curl -fsS --max-time 20 "$APP_URL/api/health"; then exit 0; fi
+              sleep 15
+            done
+            echo "::error::$APP_URL/api/health didn't answer after the deploy."
+            exit 1
+          fi

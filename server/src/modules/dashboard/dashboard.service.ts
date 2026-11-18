@@ -102,18 +102,49 @@ async function attendanceStats() {
 
 async function quizStats() {
   const since = daysAgo(30);
-  const [published, attempts] = await Promise.all([
+  const [published, attempts, perQuiz, quizzes, batches] = await Promise.all([
     prisma.quiz.count({ where: { isPublished: true } }),
     prisma.quizAttempt.aggregate({
       where: { status: "SUBMITTED", submittedAt: { gte: since } },
       _count: { _all: true },
       _sum: { score: true, maxScore: true },
     }),
+    // All submitted attempts, per quiz, then summed per batch below (an attempt doesn't store its batch).
+    // Expired attempts count as 0, like on the leaderboard.
+    prisma.quizAttempt.groupBy({
+      by: ["quizId"],
+      where: { status: { in: ["SUBMITTED", "EXPIRED"] } },
+      _count: { _all: true },
+      _sum: { score: true, maxScore: true },
+    }),
+    prisma.quiz.findMany({ select: { id: true, batchId: true } }),
+    prisma.batch.findMany({ select: { id: true, name: true } }),
   ]);
+
+  const batchOfQuiz = new Map(quizzes.map((q) => [q.id, q.batchId]));
+  const per = new Map<string, { score: number; max: number; attempts: number }>();
+  for (const g of perQuiz) {
+    const batchId = batchOfQuiz.get(g.quizId);
+    if (!batchId) continue;
+    const e = per.get(batchId) ?? { score: 0, max: 0, attempts: 0 };
+    e.score += g._sum.score ?? 0;
+    e.max += g._sum.maxScore ?? 0;
+    e.attempts += g._count._all;
+    per.set(batchId, e);
+  }
+
   return {
     published,
     attemptsLast30Days: attempts._count._all,
     averageScoreLast30Days: pct(attempts._sum.score ?? 0, attempts._sum.maxScore ?? 0),
+    // Average quiz score per batch (all quizzes so far), highest first. Batches with no attempts are left out.
+    byBatch: batches
+      .filter((b) => per.has(b.id))
+      .map((b) => {
+        const e = per.get(b.id)!;
+        return { batchId: b.id, name: b.name, averageScore: pct(e.score, e.max), attempts: e.attempts };
+      })
+      .sort((a, b) => (b.averageScore ?? -1) - (a.averageScore ?? -1)),
   };
 }
 

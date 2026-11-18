@@ -122,6 +122,8 @@ function DashboardBody({ s }: { s: DashboardStats }) {
   const weeks = s.leads.perWeek.map((w) => ({ ...w, label: fmtDay(w.weekStart).replace(/,? \d{4}$/, "") }));
   const stages = STAGES.map((st) => ({ stage: titleCase(st), count: s.leads.byStage[st] }));
   const atRisk = s.attendance.byBatch.filter((b) => b.percentage !== null && b.percentage < 75);
+  // Stats cached by an older server version (up to 60 s after a deploy) may not have this yet.
+  const quizByBatch = s.quizzes.byBatch ?? [];
   const failed = s.emails.last7Days.failed;
 
   return (
@@ -237,6 +239,28 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                 <Tooltip content={<ChartTooltip format={(v) => fmtPct(v)} />} cursor={{ fill: "#f1f3f5" }} />
                 <Bar dataKey="percentage" name="Attendance" fill={SERIES_1} radius={[0, 4, 4, 0]} maxBarSize={22}>
                   <LabelList dataKey="percentage" position="right" formatter={(v) => fmtPct(Number(v))} style={{ fill: "#1d2630", fontSize: 12 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Average quiz score by batch"
+          subtitle="all quizzes, highest first"
+          table={<MiniTable head={["Batch", "Average score", "Attempts"]} rows={quizByBatch.map((b) => [b.name, fmtPct(b.averageScore), b.attempts])} />}
+        >
+          {quizByBatch.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted">No quiz attempts yet.</p>
+          ) : (
+            <ResponsiveContainer>
+              <BarChart data={quizByBatch.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 0 }}>
+                <CartesianGrid horizontal={false} stroke={GRID} />
+                <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={TICK} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" tick={TICK} tickLine={false} axisLine={false} width={124} tickFormatter={(v: string) => shorten(v)} />
+                <Tooltip content={<ChartTooltip format={(v) => fmtPct(v)} />} cursor={{ fill: "#f1f3f5" }} />
+                <Bar dataKey="averageScore" name="Average score" fill={SERIES_1} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <LabelList dataKey="averageScore" position="right" formatter={(v) => fmtPct(Number(v))} style={{ fill: "#1d2630", fontSize: 12 }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

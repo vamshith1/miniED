@@ -148,6 +148,15 @@ describe("quizzes", () => {
     expect((await as(outsider.token).get(`/quizzes/${quizId}/leaderboard`)).status).toBe(404);
   });
 
+  it("the admin dashboard shows the batch's average quiz score", async () => {
+    // Ava 6/6 and Ben 1/6 so far: (6 + 1) / 12 = 58.3%
+    const res = await as(admin.token).get("/dashboard/stats");
+    expect(res.status).toBe(200);
+    const row = res.body.quizzes.byBatch.find((b: { batchId: string }) => b.batchId === batchId);
+    expect(row).toMatchObject({ name: expect.stringMatching(/^B-/), averageScore: 58.3, attempts: 2 });
+    expect(res.body.quizzes.byBatch.some((b: { batchId: string }) => b.batchId === otherBatchId)).toBe(false);
+  });
+
   it("a submit after the time limit plus grace is EXPIRED with 0 points", async () => {
     const late = await createUser("STUDENT", { name: "Student Late", batchId });
     const start = await as(late.token).post(`/quizzes/${quizId}/start`);

@@ -10,7 +10,7 @@ services:
     buildCommand: npm run build
     startCommand: npm start # applies database migrations, then starts the server
     healthCheckPath: /api/health
-    autoDeploy: true # redeploys on every push to the connected branch
+    autoDeploy: false # GitHub Actions deploys through a deploy hook, only after the tests pass (see .github/workflows/ci.yml)
     envVars:
       - key: NODE_ENV
         value: production

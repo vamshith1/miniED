@@ -79,9 +79,21 @@ The app refuses to start if a production setting is unsafe (no `SMTP_URL`, a non
 
 GitHub pauses scheduled workflows in repositories with no activity for 60 days; any push turns them back on.
 
+## 6. Deploys from GitHub Actions
+
+Render's auto-deploy is off in `render.yaml`. Instead, the CI workflow deploys only after the tests, the builds
+and the Docker image all pass on `main`.
+
+1. In Render, open the service's **Settings → Deploy Hook** and copy the URL. Treat it like a password.
+2. On GitHub, add the repository secret `RENDER_DEPLOY_HOOK_URL` with that URL (`APP_URL` from step 5 is reused
+   to check the site answers after the deploy).
+
+Without the secret, the **Deploy** job just notes that nothing was deployed.
+
 ## Updating
 
-Push to `main`. Render rebuilds and redeploys, and database migrations run automatically on start.
+Push to `main` (or merge a pull request). CI runs the tests, then deploys; database migrations run automatically
+on start. To deploy by hand, use **Manual Deploy** in Render.
 
 ## Checking it's healthy
 

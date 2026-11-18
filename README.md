@@ -15,6 +15,65 @@ run batches with attendance, and test students with timed quizzes and a leaderbo
 | Frontend | React 19, Vite, Tailwind 4, TanStack Query, Recharts |
 | Ops      | Docker Compose, GitHub Actions, HTTPS deploy      |
 
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        UI["React app<br/>(admin · mentor · student pages)"]
+    end
+
+    subgraph Server["Node.js process (one service)"]
+        direction TB
+        Static["Static files<br/>built React app"]
+        MW["Middleware<br/>helmet · CORS · rate limits<br/>auth (JWT cookie / Bearer) · RBAC"]
+        API["REST modules<br/>auth · users · leads · batches<br/>attendance · quizzes · dashboard<br/>documents · emails"]
+        Worker["Email worker<br/>(BullMQ, retries + daily cron)"]
+        MW --> API
+    end
+
+    PG[("PostgreSQL<br/>Prisma ORM<br/>all data + uploaded files")]
+    Redis[("Redis<br/>cache · rate-limit counters<br/>email queue")]
+    SMTP["SMTP<br/>(Brevo)"]
+    GH["GitHub Actions<br/>tests → deploy<br/>9:00 reminder ping"]
+
+    UI -- "HTTPS /api (JSON)" --> MW
+    UI -. "page load" .-> Static
+    API -- "queries / transactions" --> PG
+    API -- "leaderboard + dashboard cache,<br/>invalidated on quiz submit" --> Redis
+    API -- "enqueue email job" --> Redis
+    Redis -- "jobs" --> Worker
+    Worker -- "load fresh data" --> PG
+    Worker -- "send" --> SMTP
+    GH -- "deploy hook / cron call" --> Server
+```
+
+A request goes through the security middleware (headers, rate limit, session, role check), then a feature module
+that validates input with Zod and talks to Postgres through Prisma. Anything slow or flaky, like sending email,
+is put on a queue and done by the worker, so requests stay fast and a mail outage never fails an action. Hot reads
+(leaderboards, dashboard) come from the cache. Redis is optional: without it the cache and rate limits fall back to
+memory and the queue runs on Postgres, which is how the free deployment runs.
+
+## Design decisions
+
+| Decision | Why |
+| -------- | --- |
+| **Modular monolith** (one Express app, a folder per feature) | One small team, one deploy. Each module has its own routes, Zod schemas and service, so it could be split out later. |
+| **PostgreSQL + Prisma** | The data is relational (leads → students → batches → quizzes → attempts) and needs transactions and unique constraints. Prisma gives typed queries and versioned migrations. |
+| **One `User` table with a `role` enum** | Admins, mentors and students share login, password reset and sessions. Role checks live in one `requireRole()` middleware. |
+| **Enrolling is its own action** (`POST /leads/:id/convert`), not a stage dropdown value | On the lead page, "Enroll as student" asks for the batch, then creates the student account, puts them in a batch and marks the lead `ENROLLED` in **one transaction**, so there's never an enrolled lead without an account. Two admins enrolling at once can't create two accounts. |
+| **Append-only activity log** for leads | The timeline is history: stage changes, notes, conversion and reminders are added, never edited. |
+| **Server-side quiz timer and grading** | `startedAt` is recorded by the server, answers are never sent before submitting, and scoring happens on the server, so changing the browser clock or reading the page source doesn't help. One attempt per student (a unique key), a 15 s grace period for slow networks. |
+| **Cache-aside with explicit invalidation** | Leaderboards and dashboard stats are expensive aggregates read far more often than they change. They're cached (5 min / 60 s) and deleted on every quiz submit; the TTL is only a safety net. |
+| **Emails through a queue** (BullMQ) | Sending is slow and can fail. The action saves an `EmailLog` row and queues a job; the worker retries with exponential backoff and records `SENT` / `FAILED`, so admins can see every email. |
+| **Rate limits** with fixed windows in Redis | Login (per IP + email, and per IP), signup, password reset, quiz submit (per student), uploads and CSV import. Shared across servers when Redis is there. |
+| **httpOnly cookie sessions + CSRF header** | Page scripts can't read the token (XSS can't steal it); cookie writes need `X-Requested-With`, which other sites can't send. `tokenVersion` signs out every session after a password change. |
+| **404 instead of 403** for other people's batches and files | Doesn't reveal that an ID exists. |
+| **Files checked by their bytes**, stored in Postgres | The extension and the first bytes must agree (a renamed `.exe` is rejected). Storing in the database survives free hosts that wipe the disk. |
+| **Indexes follow real queries** | Leads by stage/date, follow-ups due, attendance by batch/date, attempts by quiz/score. |
+| **One service in production** | The API serves the built React app, so the site is one address: first-party cookies, no CORS, one free Render service. |
+| **CI gates the deploy** | Typecheck, Vitest + Supertest, the 261 end-to-end smoke checks and the Docker build must all pass before GitHub Actions triggers the Render deploy. |
+
 ## Project layout
 
 ```
@@ -44,12 +103,23 @@ Production settings (see `server/.env.example`): `NODE_ENV=production`, `CLIENT_
 `TRUST_PROXY=1` behind a proxy, `CRON_SECRET` for the GitHub Action that sends the 9:00 reminders, and optionally
 `BCRYPT_ROUNDS=10` on slow free CPUs.
 
-## Running locally
+## Running with Docker Compose
 
-Requires Node 20+ and Docker Desktop.
+Runs the app, Postgres and Redis together:
 
 ```bash
-docker compose up -d               # start Postgres and Redis
+docker compose up -d --build                                    # http://localhost:8080
+docker compose exec app npm run db:seed                         # first time: admin + demo mentor
+```
+
+Sign in with `admin@miniedcrm.test` / `Admin@12345`. Emails are saved inside the container (`/app/server/.outbox`).
+
+## Running locally
+
+Requires Node 22.12+ and Docker Desktop.
+
+```bash
+docker compose up -d postgres redis   # start only Postgres and Redis
 cd server
 cp .env.example .env               # then set JWT_SECRET
 npm install
@@ -99,7 +169,8 @@ no email is sent. See [server/tests/smoke](server/tests/smoke/README.md) for the
 
 **CI.** [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to `main` and every pull request:
 typecheck and build of both apps, `npm test`, then the built API is started against a fresh Postgres and
-`npm run test:smoke` runs against it.
+`npm run test:smoke` runs against it, and the Docker image is built. On `main`, when all of that passes, it
+triggers the Render deploy (see [DEPLOY.md](DEPLOY.md#6-deploys-from-github-actions)).
 
 Redis is optional while developing: if `REDIS_URL` is missing or unreachable, the API logs
 `Cache: ... using in-memory cache` and caches in memory instead, and the email queue uses Postgres.
@@ -129,6 +200,7 @@ change data must also send `X-Requested-With: miniedcrm`, which other websites c
 | Signup | 10 per hour per IP |
 | Forgot / reset password | 10 per hour per IP |
 | Change password | 10 per 15 min per user |
+| Quiz submit | 20 per 10 min per student |
 | File uploads / CSV imports | 30 / 20 per hour per user |
 
 In development, requests from your own machine skip the limits; set `RATE_LIMIT_LOCAL=true` to test them.
@@ -251,7 +323,7 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 
 | Method | Path                              | Who                        | What                                    |
 | ------ | --------------------------------- | -------------------------- | --------------------------------------- |
-| GET    | `/api/dashboard/stats`            | Admin                      | Leads by stage/source/week, conversion rate, follow-ups due, attendance by batch, quiz and email numbers. Cached 60 s (`X-Cache`) |
+| GET    | `/api/dashboard/stats`            | Admin                      | Leads by stage/source/week, conversion rate, follow-ups due, attendance by batch, average quiz score by batch, quiz and email numbers. Cached 60 s (`X-Cache`) |
 | POST   | `/api/documents`                  | any role                   | Multipart `file` + `kind` (`RESUME` default, or `OTHER`). A new resume replaces the old one |
 | GET    | `/api/documents?ownerId=`         | owner, admin, batch mentor | List a user's files (default: your own)  |
 | GET    | `/api/documents/:id/download`     | owner, admin, batch mentor | Download as an attachment               |
@@ -272,7 +344,7 @@ stored. Downloads are always sent as attachments with `Cache-Control: no-store`.
 | Mentor  | My batches: roster with attendance % and resumes, daily attendance marking, quiz builder (draft → publish), attempts and leaderboards |
 | Student | Home (attendance, quizzes, batch leaderboard), timed quiz with server-side timer and auto-submit, result review, resume upload |
 
-The token is kept in `localStorage`. Pages check roles too, but the API is what enforces them.
+The session lives in an httpOnly cookie. Pages check roles too, but the API is what enforces them.
 
 ### Emails (Admin only)
 

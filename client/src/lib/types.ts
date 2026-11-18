@@ -246,6 +246,11 @@ export interface DashboardStats {
     last30Days: { percentage: number | null; recordsMarked: number };
     byBatch: { batchId: string; name: string; percentage: number | null }[];
   };
-  quizzes: { published: number; attemptsLast30Days: number; averageScoreLast30Days: number | null };
+  quizzes: {
+    published: number;
+    attemptsLast30Days: number;
+    averageScoreLast30Days: number | null;
+    byBatch: { batchId: string; name: string; averageScore: number | null; attempts: number }[];
+  };
   emails: { last7Days: { sent: number; queued: number; failed: number } };
 }

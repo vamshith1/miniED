@@ -1,6 +1,31 @@
-# Local development services. The API and frontend containers get added
-# in the deployment phase; for now the API runs on your machine with `npm run dev`.
+# The whole app in containers: `docker compose up -d --build`, then open http://localhost:8080.
+# For day-to-day development, start only the services and run the code on your machine:
+#   docker compose up -d postgres redis
 services:
+  app:
+    build: .
+    container_name: miniedcrm-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:4000" # 8080 so it doesn't clash with `npm run dev` on 4000
+    environment:
+      # "development" so it runs on plain http://localhost without real email.
+      # A real deployment uses production, which requires https and SMTP (see DEPLOY.md).
+      NODE_ENV: development
+      DATABASE_URL: postgresql://miniedcrm:miniedcrm@postgres:5432/miniedcrm?schema=public
+      REDIS_URL: redis://redis:6379
+      QUEUE_BACKEND: redis
+      JWT_SECRET: ${JWT_SECRET:-compose-local-only-secret-0123456789abcdefghijklmnop}
+      CLIENT_URL: http://localhost:8080
+      # Without SMTP_URL, emails are saved inside the container in /app/server/.outbox.
+      SMTP_URL: ${SMTP_URL:-}
+      FILE_STORAGE: database
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine
     container_name: miniedcrm-postgres

@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.env
+**/.outbox
+**/uploads
+**/*.log
+.git
+.github
+.claude
+server/.pgdata
