@@ -10,12 +10,12 @@ import { AnimatedNumber, Button, Card, PageHeader, QueryState, Stat, cx } from "
 
 // Chart colours: purple brand for the main series, orange as its contrasting partner
 // (distinct for colour-blind viewers, readable on white).
-const SERIES_1 = "#7c3aed";
-const SERIES_2 = "#ea6a2f";
-const HOVER_BAR = "#5b21b6"; // a hovered bar darkens
-const CURSOR = "#f4effd"; // the column behind the pointer
-const GRID = "#ebe8f0";
-const AXIS_TEXT = "#615a72";
+const SERIES_1 = "var(--chart-1)";
+const SERIES_2 = "var(--chart-2)";
+const HOVER_BAR = "var(--chart-1-hover)"; // a hovered bar changes shade
+const CURSOR = "var(--chart-cursor)"; // the column behind the pointer
+const GRID = "var(--chart-grid)";
+const AXIS_TEXT = "var(--chart-axis)";
 const TICK = { fill: AXIS_TEXT, fontSize: 12 };
 const REFRESH_MS = 30_000;
 
@@ -310,7 +310,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                 <Tooltip isAnimationActive={false} content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
                 <Legend content={<SeriesLegend items={[{ name: "New leads", color: SERIES_1 }, { name: "Converted", color: SERIES_2 }]} />} />
                 <Bar dataKey="created" name="New leads" fill={SERIES_1} activeBar={{ fill: HOVER_BAR }} radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} />
-                <Bar dataKey="converted" name="Converted" fill={SERIES_2} activeBar={{ fill: "#c2541f" }} radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} />
+                <Bar dataKey="converted" name="Converted" fill={SERIES_2} activeBar={{ fill: "var(--chart-2-hover)" }} radius={[4, 4, 0, 0]} maxBarSize={20} animationDuration={700} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -335,7 +335,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                   className="cursor-pointer"
                   onClick={(e) => openRow<{ raw: string }>(e, (r) => navigate(`/leads?stage=${r.raw}`))}
                 >
-                  <LabelList dataKey="count" position="right" style={{ fill: "#1f1a2e", fontSize: 12 }} />
+                  <LabelList dataKey="count" position="right" style={{ fill: "var(--chart-label)", fontSize: 12 }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -354,7 +354,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                   <YAxis type="category" dataKey="source" tick={TICK} tickLine={false} axisLine={false} width={104} tickFormatter={(v: string) => shorten(v, 14)} />
                   <Tooltip isAnimationActive={false} content={<ChartTooltip />} cursor={{ fill: CURSOR }} />
                   <Bar dataKey="count" name="Leads" fill={SERIES_1} activeBar={{ fill: HOVER_BAR }} radius={[0, 4, 4, 0]} maxBarSize={22} animationDuration={700}>
-                    <LabelList dataKey="count" position="right" style={{ fill: "#1f1a2e", fontSize: 12 }} />
+                    <LabelList dataKey="count" position="right" style={{ fill: "var(--chart-label)", fontSize: 12 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -389,7 +389,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                     className="cursor-pointer"
                     onClick={(e) => openRow<{ batchId: string }>(e, (r) => navigate(`/batches/${r.batchId}?tab=attendance`))}
                   >
-                    <LabelList dataKey="percentage" position="right" formatter={(v) => fmtPct(Number(v))} style={{ fill: "#1f1a2e", fontSize: 12 }} />
+                    <LabelList dataKey="percentage" position="right" formatter={(v) => fmtPct(Number(v))} style={{ fill: "var(--chart-label)", fontSize: 12 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -423,7 +423,7 @@ function DashboardBody({ s }: { s: DashboardStats }) {
                     className="cursor-pointer"
                     onClick={(e) => openRow<{ batchId: string }>(e, (r) => navigate(`/batches/${r.batchId}?tab=leaderboard`))}
                   >
-                    <LabelList dataKey="averageScore" position="right" formatter={(v) => fmtPct(Number(v))} style={{ fill: "#1f1a2e", fontSize: 12 }} />
+                    <LabelList dataKey="averageScore" position="right" formatter={(v) => fmtPct(Number(v))} style={{ fill: "var(--chart-label)", fontSize: 12 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

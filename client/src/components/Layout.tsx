@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
-import { BookOpen, CircleUser, FileText, Gauge, GraduationCap, Home, LogOut, Mail, Menu, Users, UserRoundSearch, X } from "lucide-react";
+import { BookOpen, CircleUser, FileText, Gauge, GraduationCap, Home, LogOut, Mail, Menu, Moon, Sun, Users, UserRoundSearch, X } from "lucide-react";
 import { useAuth, useUser } from "../lib/auth";
 import type { Role } from "../lib/types";
 import { titleCase } from "../lib/format";
+import { useTheme } from "../lib/theme";
 import { cx } from "./ui";
 
 const NAV: Record<Role, { to: string; label: string; icon: ReactNode }[]> = {
@@ -28,6 +29,9 @@ export function Layout() {
   const user = useUser();
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const { theme, toggle } = useTheme();
+  const ThemeIcon = theme === "dark" ? Sun : Moon;
+  const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
 
   const nav = (
     <nav className="space-y-0.5" aria-label="Main">
@@ -67,6 +71,13 @@ export function Layout() {
       >
         <CircleUser className="size-4" /> Account
       </NavLink>
+      <button
+        onClick={toggle}
+        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted transition-colors hover:bg-brand-soft/60 hover:text-brand-strong"
+        aria-label={themeLabel}
+      >
+        <ThemeIcon className="size-4" /> {theme === "dark" ? "Light theme" : "Dark theme"}
+      </button>
       <button onClick={logout} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted hover:bg-canvas hover:text-ink">
         <LogOut className="size-4" /> Sign out
       </button>
@@ -75,7 +86,7 @@ export function Layout() {
 
   const brand = (
     <div className="flex items-center gap-2 px-3">
-      <span className="grid size-7 place-items-center rounded-md bg-linear-to-br from-brand to-brand-strong text-white shadow-sm shadow-brand/30">
+      <span className="grid size-7 place-items-center rounded-md bg-linear-to-br from-brand to-brand-deep text-white shadow-sm shadow-brand/30">
         <BookOpen className="size-4" />
       </span>
       <span className="font-semibold text-ink">MiniEdCRM</span>
@@ -103,10 +114,18 @@ export function Layout() {
           <Menu className="size-5" />
         </button>
         {brand}
+        <button
+          onClick={toggle}
+          className="ml-auto rounded-md p-1.5 text-muted transition-colors hover:bg-brand-soft hover:text-brand-strong active:scale-95"
+          aria-label={themeLabel}
+          title={themeLabel}
+        >
+          <ThemeIcon className="size-5" />
+        </button>
       </header>
       {open && (
         <div className="fixed inset-0 z-30 md:hidden">
-          <div className="animate-fade-in absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
+          <div className="animate-fade-in absolute inset-0 bg-black/55" onClick={() => setOpen(false)} />
           <div className="animate-slide-in-left absolute inset-y-0 left-0 flex w-64 flex-col justify-between bg-surface px-3 py-4 shadow-xl">
             <div className="space-y-5">
               <div className="flex items-center justify-between">

@@ -12,9 +12,11 @@
   --color-muted: #615a72;
   --color-faint: #8d87a0;
 
-  /* Purple brand. brand-strong passes 4.5:1 contrast for text on white and on brand-soft. */
+  /* Purple brand. brand-strong is for text (4.5:1+ on surface and brand-soft);
+     brand-deep is the dark end of filled buttons, under white text. */
   --color-brand: #7c3aed;
   --color-brand-strong: #6425d0;
+  --color-brand-deep: #6425d0;
   --color-brand-soft: #f1eafe;
 
   --color-good: #15803d;
@@ -49,6 +51,53 @@
       transform: translateX(-100%);
     }
   }
+}
+
+/* Chart colours, read by the dashboard as var(--chart-...). */
+:root {
+  color-scheme: light;
+  --chart-1: #7c3aed;
+  --chart-1-hover: #5b21b6;
+  --chart-2: #ea6a2f;
+  --chart-2-hover: #c2541f;
+  --chart-grid: #ebe8f0;
+  --chart-axis: #615a72;
+  --chart-cursor: #f4effd;
+  --chart-label: #1f1a2e;
+}
+
+/* Dark theme (the default; see index.html). Same names, so every component follows.
+   Text colours keep 4.5:1+ contrast on canvas, surface and the soft backgrounds. */
+:root[data-theme="dark"] {
+  color-scheme: dark; /* native inputs, date pickers and scrollbars go dark too */
+
+  --color-canvas: #110f19;
+  --color-surface: #1a1726;
+  --color-line: #2e2a41;
+  --color-ink: #ece9f6;
+  --color-muted: #aaa3c0;
+  --color-faint: #857e9f;
+
+  --color-brand: #8b5cf6;
+  --color-brand-strong: #c4b5fd;
+  --color-brand-deep: #6d28d9;
+  --color-brand-soft: #2a2146;
+
+  --color-good: #4ade80;
+  --color-good-soft: #10291b;
+  --color-warn: #fbbf24;
+  --color-warn-soft: #30240c;
+  --color-bad: #f87171;
+  --color-bad-soft: #3a1619;
+
+  --chart-1: #a78bfa;
+  --chart-1-hover: #c4b5fd;
+  --chart-2: #fb923c;
+  --chart-2-hover: #fdba74;
+  --chart-grid: #2e2a41;
+  --chart-axis: #aaa3c0;
+  --chart-cursor: rgb(139 92 246 / 0.14);
+  --chart-label: #ece9f6;
 }
 
 html,

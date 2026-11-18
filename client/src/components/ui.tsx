@@ -26,7 +26,7 @@ export function Button({ variant = "primary", size = "md", loading, disabled, cl
         "disabled:cursor-not-allowed disabled:opacity-55",
         size === "sm" ? "h-8 px-2.5 text-sm" : "h-9 px-3.5 text-sm",
         variant === "primary" &&
-          "bg-linear-to-b from-brand to-brand-strong text-white shadow-sm shadow-brand/25 enabled:hover:shadow-md enabled:hover:shadow-brand/35 enabled:hover:brightness-110",
+          "bg-linear-to-b from-brand to-brand-deep text-white shadow-sm shadow-brand/25 enabled:hover:shadow-md enabled:hover:shadow-brand/35 enabled:hover:brightness-110",
         variant === "secondary" &&
           "border border-line bg-surface text-ink shadow-xs enabled:hover:border-brand/40 enabled:hover:bg-brand-soft/50 enabled:hover:text-brand-strong enabled:hover:shadow-sm",
         variant === "ghost" && "text-muted enabled:hover:bg-brand-soft/60 enabled:hover:text-brand-strong",
@@ -287,7 +287,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
       ref={ref}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
-      className={cx("m-auto w-[calc(100%-2rem)] rounded-lg border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-ink/40", wide ? "max-w-2xl" : "max-w-md")}
+      className={cx("m-auto w-[calc(100%-2rem)] rounded-lg border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/55", wide ? "max-w-2xl" : "max-w-md")}
     >
       {open && (
         <div>
