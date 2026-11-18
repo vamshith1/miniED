@@ -11,6 +11,7 @@ run batches with attendance, and test students with timed quizzes and a leaderbo
 | Database | PostgreSQL 17 via Prisma ORM                      |
 | Cache    | Redis (leaderboard, dashboard stats, rate limits) |
 | Queue    | BullMQ on Redis, or on Postgres without Redis (emails with retries) |
+| Payments | Razorpay (orders, signed checkout, webhooks); a built-in test gateway in development |
 | Email    | Nodemailer over SMTP; saved to `.outbox/` in dev  |
 | Frontend | React 19, Vite, Tailwind 4, TanStack Query, Recharts |
 | Ops      | Docker Compose, GitHub Actions, HTTPS deploy      |
@@ -346,6 +347,33 @@ stored. Downloads are always sent as attachments with `Cache-Control: no-store`.
 
 The session lives in an httpOnly cookie. Pages check roles too, but the API is what enforces them.
 
+### Payments (Admin only)
+
+Course fees, collected when a lead is enrolled. Each batch can have a fee (`feePaise`, an integer in paise).
+
+| Method | Path | What |
+| ------ | ---- | ---- |
+| GET    | `/api/payments/config` | Whether payments are on, the gateway and its public key |
+| POST   | `/api/payments/orders` | `{leadId, batchId}` → order at the gateway plus what the checkout needs. **The amount comes from the batch**, never the request |
+| POST   | `/api/payments/verify` | `{orderId, gatewayPaymentId, signature}` from the checkout → checks the signature, marks PAID, enrolls the lead |
+| POST   | `/api/payments/webhook` | Called by Razorpay. Authenticated by an HMAC signature over the raw body, not a session |
+| GET    | `/api/payments?leadId=` | A lead's payments |
+| POST   | `/api/payments/fake/complete` | Test gateway only: what Razorpay's checkout would return |
+
+**How a payment works**
+1. The admin picks a batch with a fee and clicks **Collect & enroll**. The server creates the order with the batch's fee.
+2. The payer pays in Razorpay's checkout (or the built-in test checkout). The browser gets a payment id and a signature.
+3. The server checks the signature (HMAC-SHA256 with the key secret, compared in constant time), then confirms the payment.
+4. Razorpay's webhook reports the same payment to the server directly, in case the browser closed. Its signature and amount are checked too.
+5. Confirming is **idempotent**: whichever of 3 and 4 comes first marks it PAID (a conditional update, plus a unique
+   `gatewayPaymentId`), logs `PAYMENT_RECEIVED` on the timeline, queues a receipt email and enrolls the lead with the
+   existing conversion transaction. The other finds it done. If enrolment can't happen (say the email already has an
+   account), the payment stays recorded with the reason.
+
+`PAYMENT_PROVIDER` is `fake` in development (a built-in test gateway that signs results like Razorpay, so you can
+try everything without an account) and `off` in production until Razorpay keys are set (DEPLOY.md, step 7).
+Production refuses the test gateway. Card details never touch this server. Leads with payments can't be deleted.
+
 ### Emails (Admin only)
 
 | Method | Path                          | What                                                        |
@@ -358,6 +386,7 @@ The session lives in an httpOnly cookie. Pages check roles too, but the API is w
 | ---------------- | ------------------------------------------------- | --------------------- |
 | `welcome`        | Signup, admin creates a user, lead conversion     | The new user (with the temporary password after a conversion) |
 | `quiz-result`    | A student submits a quiz in time                  | The student: score, %, time and current rank |
+| `payment-receipt` | A course fee is paid                           | The lead: amount, course, payment id and receipt number |
 | `lead-follow-up` | Daily at 9:00 (`FOLLOW_UP_CRON`)                  | Each assignee, one email listing their leads due today or overdue |
 
 **How sending works**
@@ -397,5 +426,7 @@ on its timeline.
 - **Attendance** is unique per `(studentId, date)`, so marking a day twice updates the record instead of duplicating it.
 - **QuizAttempt** is unique per `(quizId, studentId)` and stores `timeTakenMs` as the leaderboard tie-breaker.
 - **Option.isCorrect** is never sent to students before they submit.
+- **Payment** stores money as integer paise, copies the amount from the batch at order time, and has a unique
+  `gatewayPaymentId` so the same payment can never be counted twice.
 - **EmailLog** has one row per email, so admins can see what was sent, what's retrying and what failed.
 - Indexes follow real queries: leads by stage and date, follow-ups due, attendance by batch and date, attempts by quiz and score.

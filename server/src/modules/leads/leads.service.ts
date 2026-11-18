@@ -170,5 +170,7 @@ export async function getTimeline(leadId: string, page: { page: number; limit: n
 export async function deleteLead(id: string) {
   const lead = await getLeadOr404(id);
   if (lead.convertedUserId) throw new HttpError(409, "Enrolled leads can't be deleted; they're linked to a student");
+  // Payment records are financial history and must stay.
+  if (await prisma.payment.count({ where: { leadId: id } })) throw new HttpError(409, "This lead has payment records, so it can't be deleted");
   await prisma.lead.delete({ where: { id } }); // notes and activities cascade
 }

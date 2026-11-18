@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Plus, Users } from "lucide-react";
 import { api } from "../lib/api";
 import { useUser } from "../lib/auth";
-import { fmtDay, todayYmd } from "../lib/format";
+import { fmtDay, fmtMoney, rupeesToPaise, todayYmd } from "../lib/format";
 import type { Batch, Paginated, User } from "../lib/types";
 import { Badge, Button, EmptyState, ErrorBox, Field, Modal, PageHeader, QueryState, Select, TextField, fieldErrorsOf } from "../components/ui";
 
@@ -92,13 +92,17 @@ export function BatchFormModal({ open, onClose, batch }: { open: boolean; onClos
     startDate: batch?.startDate.slice(0, 10) ?? todayYmd(),
     endDate: batch?.endDate?.slice(0, 10) ?? "",
     mentorId: batch?.mentorId ?? "",
+    fee: batch?.feePaise != null ? String(batch.feePaise / 100) : "",
   };
   const [form, setForm] = useState(initial);
   const save = useMutation({
-    mutationFn: () =>
-      batch
-        ? api.patch(`/batches/${batch.id}`, { ...form, endDate: form.endDate || null, mentorId: form.mentorId || null })
-        : api.post("/batches", { ...form, endDate: form.endDate || undefined, mentorId: form.mentorId || undefined }),
+    mutationFn: () => {
+      const { fee, ...fields } = form;
+      const feePaise = rupeesToPaise(fee);
+      return batch
+        ? api.patch(`/batches/${batch.id}`, { ...fields, endDate: form.endDate || null, mentorId: form.mentorId || null, feePaise })
+        : api.post("/batches", { ...fields, endDate: form.endDate || undefined, mentorId: form.mentorId || undefined, feePaise: feePaise ?? undefined });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["batches"] });
       if (batch) qc.invalidateQueries({ queryKey: ["batch", batch.id] });
@@ -124,6 +128,18 @@ export function BatchFormModal({ open, onClose, batch }: { open: boolean; onClos
           <TextField label="Start date" type="date" required value={form.startDate} onChange={set("startDate")} error={fe.startDate} />
           <TextField label="End date (optional)" type="date" min={form.startDate} value={form.endDate} onChange={set("endDate")} error={fe.endDate} />
         </div>
+        <TextField
+          label="Course fee in ₹ (optional)"
+          type="number"
+          min={0}
+          step="0.01"
+          inputMode="decimal"
+          placeholder="20000"
+          value={form.fee}
+          onChange={set("fee")}
+          error={fe.feePaise}
+          hint={form.fee && Number(form.fee) > 0 ? `Enrolling asks for ${fmtMoney(rupeesToPaise(form.fee))}, or can skip payment.` : "Leave empty for no fee."}
+        />
         <Field label="Mentor" error={fe.mentorId}>
           <Select value={form.mentorId} onChange={set("mentorId")}>
             <option value="">No mentor yet</option>

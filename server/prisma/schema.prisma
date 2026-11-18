@@ -39,17 +39,18 @@ model User {
   // The lead this student was converted from, if any.
   convertedFromLead Lead? @relation("LeadConversion")
 
-  mentoredBatches  Batch[]        @relation("BatchMentor")
-  leadsCreated     Lead[]         @relation("LeadCreator")
-  leadsAssigned    Lead[]         @relation("LeadAssignee")
+  mentoredBatches  Batch[]              @relation("BatchMentor")
+  leadsCreated     Lead[]               @relation("LeadCreator")
+  leadsAssigned    Lead[]               @relation("LeadAssignee")
   leadNotes        LeadNote[]
   leadActivities   LeadActivity[]
-  attendance       Attendance[]   @relation("AttendanceStudent")
-  attendanceMarked Attendance[]   @relation("AttendanceMarker")
+  attendance       Attendance[]         @relation("AttendanceStudent")
+  attendanceMarked Attendance[]         @relation("AttendanceMarker")
   quizzesCreated   Quiz[]
   quizAttempts     QuizAttempt[]
   documents        Document[]
   passwordResets   PasswordResetToken[]
+  paymentsCreated  Payment[]            @relation("PaymentCreator")
 
   @@index([role])
   @@index([batchId])
@@ -103,6 +104,7 @@ model Lead {
 
   notes      LeadNote[]
   activities LeadActivity[]
+  payments   Payment[]
 
   // Indexes match the list page: filter by stage, sort by newest, search by email,
   // and the reminder job's "follow-ups due today" query.
@@ -133,6 +135,7 @@ enum ActivityType {
   ASSIGNED
   CONVERTED
   REMINDER_SENT
+  PAYMENT_RECEIVED
 }
 
 // Append-only log that powers the lead's activity timeline.
@@ -158,6 +161,9 @@ model Batch {
   course    String
   startDate DateTime  @db.Date
   endDate   DateTime? @db.Date
+  // Course fee in paise (₹1 = 100 paise), as an integer so money never has rounding errors.
+  // Null = no fee, so enrolling doesn't ask for a payment.
+  feePaise  Int?
   createdAt DateTime  @default(now())
 
   mentorId String?
@@ -166,6 +172,7 @@ model Batch {
   students   User[]       @relation("BatchStudents")
   attendance Attendance[]
   quizzes    Quiz[]
+  payments   Payment[]
 
   @@index([mentorId])
 }
@@ -339,4 +346,42 @@ model EmailLog {
   sentAt    DateTime?
 
   @@index([status, createdAt])
+}
+
+// ─────────────────────────────── Payments ────────────────────────────────────
+
+enum PaymentStatus {
+  CREATED // order made at the gateway, waiting for the payer
+  PAID // the gateway confirmed it (signed checkout result or webhook)
+  FAILED // the payer's attempt failed or was cancelled
+}
+
+// One fee payment for enrolling a lead in a batch. The amount is copied from the
+// batch fee when the order is created, so later fee changes don't rewrite history.
+model Payment {
+  id               String        @id @default(cuid())
+  amountPaise      Int
+  currency         String        @default("INR")
+  status           PaymentStatus @default(CREATED)
+  provider         String // "razorpay" or "fake" (local test gateway)
+  gatewayOrderId   String        @unique
+  // Unique: the checkout callback and the webhook can both report the same payment,
+  // and it must only count (and enroll) once.
+  gatewayPaymentId String?       @unique
+  failureReason    String?
+  // Enrolment runs after the payment is confirmed; if it can't (say the email already
+  // has an account), the money is still recorded and this says why.
+  enrollmentError  String?
+  createdAt        DateTime      @default(now())
+  paidAt           DateTime?
+
+  leadId      String
+  lead        Lead   @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  batchId     String
+  batch       Batch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  createdById String
+  createdBy   User   @relation("PaymentCreator", fields: [createdById], references: [id])
+
+  @@index([leadId, createdAt])
+  @@index([status, paidAt])
 }

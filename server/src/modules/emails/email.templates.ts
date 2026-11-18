@@ -14,9 +14,10 @@ export type EmailPayloads = {
   "lead-follow-up": { userId: string; leadIds: string[] };
   "password-reset": { userId: string; sealedToken: string };
   "password-changed": { userId: string; how: "changed" | "reset" };
+  "payment-receipt": { paymentId: string };
 };
 export type EmailTemplate = keyof EmailPayloads;
-export const TEMPLATES = ["welcome", "quiz-result", "lead-follow-up", "password-reset", "password-changed"] as const satisfies EmailTemplate[];
+export const TEMPLATES = ["welcome", "quiz-result", "lead-follow-up", "password-reset", "password-changed", "payment-receipt"] as const satisfies EmailTemplate[];
 
 // Retrying won't help (e.g. the user was deleted), so the queue gives up at once.
 export class PermanentEmailError extends Error {}
@@ -36,7 +37,7 @@ ${body}
 </div></body></html>`;
 
 const button = (href: string, label: string) =>
-  `<p><a href="${esc(href)}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">${esc(label)}</a></p>`;
+  `<p><a href="${esc(href)}" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">${esc(label)}</a></p>`;
 
 async function welcome({ userId, sealedPassword }: EmailPayloads["welcome"]): Promise<Rendered> {
   const user = await prisma.user.findUnique({ where: { id: userId }, include: { batch: { select: { name: true, course: true } } } });
@@ -175,6 +176,35 @@ ${warning}`,
   };
 }
 
+const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+async function paymentReceipt({ paymentId }: EmailPayloads["payment-receipt"]): Promise<Rendered> {
+  const p = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { lead: { select: { name: true } }, batch: { select: { name: true, course: true } } },
+  });
+  if (!p || p.status !== "PAID" || !p.paidAt) throw new PermanentEmailError("Payment not found or not paid");
+  const rows: [string, string][] = [
+    ["Amount", rupees(p.amountPaise)],
+    ["Course", `${p.batch.course} (${p.batch.name})`],
+    ["Paid on", p.paidAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })],
+    ["Payment ID", p.gatewayPaymentId ?? "-"],
+    ["Receipt no.", p.id],
+  ];
+  return {
+    subject: `Payment received: ${rupees(p.amountPaise)} for ${p.batch.course}`,
+    text: [`Hi ${p.lead.name},`, "Thank you, we've received your payment.", ...rows.map(([k, v]) => `${k}: ${v}`), "Keep this email as your receipt."].join("\n\n"),
+    html: layout(
+      "Payment received",
+      `<p>Hi ${esc(p.lead.name)},</p><p>Thank you, we've received your payment.</p>
+<table style="width:100%;border-collapse:collapse;font-size:14px">
+${rows.map(([k, v]) => `<tr style="border-top:1px solid #e4e7eb"><td style="padding:8px 0;color:#52606d">${esc(k)}</td><td style="padding:8px 0;text-align:right"><b>${esc(v)}</b></td></tr>`).join("\n")}
+</table>
+<p style="color:#52606d;font-size:13px">Keep this email as your receipt.</p>`,
+    ),
+  };
+}
+
 export async function render<T extends EmailTemplate>(template: T, payload: EmailPayloads[T]): Promise<Rendered> {
   switch (template) {
     case "welcome":
@@ -187,6 +217,8 @@ export async function render<T extends EmailTemplate>(template: T, payload: Emai
       return passwordReset(payload as EmailPayloads["password-reset"]);
     case "password-changed":
       return passwordChanged(payload as EmailPayloads["password-changed"]);
+    case "payment-receipt":
+      return paymentReceipt(payload as EmailPayloads["payment-receipt"]);
     default:
       throw new PermanentEmailError(`Unknown template ${template}`);
   }

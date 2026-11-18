@@ -33,4 +33,5 @@ export const testEnv: Record<string, string> = {
   TRUST_PROXY: "0",
   FILE_STORAGE: "database",
   CRON_SECRET: "test-cron-secret-0123456789abcdef",
+  PAYMENT_PROVIDER: "fake", // the built-in test gateway
 };

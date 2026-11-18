@@ -90,6 +90,22 @@ and the Docker image all pass on `main`.
 
 Without the secret, the **Deploy** job just notes that nothing was deployed.
 
+## 7. Payments (optional): Razorpay
+
+Course-fee payments are off in production until you set them up.
+
+1. Sign up at [razorpay.com](https://razorpay.com). **Test Mode** works straight away with no KYC; live
+   payments need your business verified.
+2. **Account & Settings → API Keys**: generate keys. Test keys start with `rzp_test_`.
+3. **Account & Settings → Webhooks → Add**: URL `https://<your-app>/api/payments/webhook`, choose a secret,
+   and tick `payment.captured` and `payment.failed`.
+4. In Render's **Environment** tab add `PAYMENT_PROVIDER=razorpay`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
+   and `RAZORPAY_WEBHOOK_SECRET` (the webhook secret from step 3).
+5. Payments must be captured automatically (Razorpay's default for orders), so the webhook reports
+   `payment.captured`.
+
+Try it in Test Mode with Razorpay's test cards or UPI id `success@razorpay` before switching to live keys.
+
 ## Updating
 
 Push to `main` (or merge a pull request). CI runs the tests, then deploys; database migrations run automatically

@@ -7,6 +7,8 @@ const batchFields = {
   startDate: dateOnly,
   endDate: dateOnly.optional(),
   mentorId: z.string().optional(),
+  // Course fee in paise (₹1 = 100). Up to ₹10,00,000. Leave out for no fee.
+  feePaise: z.number().int().min(0).max(100_000_000).optional(),
 };
 
 const endAfterStart = (b: { startDate?: string; endDate?: string | null }) =>
@@ -17,7 +19,7 @@ export const createBatchSchema = z
   .refine(endAfterStart, { message: "endDate must be on or after startDate", path: ["endDate"] });
 
 export const updateBatchSchema = z
-  .object({ ...batchFields, endDate: dateOnly.nullable(), mentorId: z.string().nullable() })
+  .object({ ...batchFields, endDate: dateOnly.nullable(), mentorId: z.string().nullable(), feePaise: batchFields.feePaise.unwrap().nullable() })
   .partial()
   .refine((o) => Object.keys(o).length > 0, "Send at least one field to update")
   .refine(endAfterStart, { message: "endDate must be on or after startDate", path: ["endDate"] });

@@ -101,6 +101,8 @@ export const limits = {
   changePassword: rateLimit({ name: "change-password", windowMs: 15 * MIN, max: 10, key: (req) => req.user?.id ?? req.ip ?? "" }),
   upload: rateLimit({ name: "upload", windowMs: 60 * MIN, max: 30, key: (req) => req.user?.id ?? req.ip ?? "" }),
   csvImport: rateLimit({ name: "csv-import", windowMs: 60 * MIN, max: 20, key: (req) => req.user?.id ?? req.ip ?? "" }),
+  // Creating payment orders, per admin: each one is a call to the gateway.
+  paymentOrder: rateLimit({ name: "payment-order", windowMs: 60 * MIN, max: 60, key: (req) => req.user?.id ?? req.ip ?? "" }),
   // Quiz submits per student. Each quiz only scores once, so real use is a handful an hour;
   // this stops scripts hammering the grader (and the leaderboard cache it clears).
   quizSubmit: rateLimit({

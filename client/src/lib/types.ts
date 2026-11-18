@@ -59,7 +59,7 @@ export interface LeadNote {
 
 export interface LeadActivity {
   id: string;
-  type: "CREATED" | "IMPORTED" | "STAGE_CHANGED" | "NOTE_ADDED" | "ASSIGNED" | "CONVERTED" | "REMINDER_SENT";
+  type: "CREATED" | "IMPORTED" | "STAGE_CHANGED" | "NOTE_ADDED" | "ASSIGNED" | "CONVERTED" | "REMINDER_SENT" | "PAYMENT_RECEIVED";
   meta: Record<string, unknown> | null;
   createdAt: string;
   actor: { id: string; name: string } | null;
@@ -71,6 +71,7 @@ export interface Batch {
   course: string;
   startDate: string;
   endDate: string | null;
+  feePaise: number | null; // course fee in paise (₹1 = 100); null = no fee
   mentorId: string | null;
   mentor: UserBrief | null;
   _count: { students: number };
@@ -253,4 +254,56 @@ export interface DashboardStats {
     byBatch: { batchId: string; name: string; averageScore: number | null; attempts: number }[];
   };
   emails: { last7Days: { sent: number; queued: number; failed: number } };
+}
+
+// ---------- Payments
+
+export interface PaymentConfig {
+  enabled: boolean;
+  provider: "razorpay" | "fake" | null;
+  keyId: string | null;
+  currency: string;
+}
+
+export interface Payment {
+  id: string;
+  amountPaise: number;
+  currency: string;
+  status: "CREATED" | "PAID" | "FAILED";
+  provider: string;
+  gatewayOrderId: string;
+  gatewayPaymentId: string | null;
+  failureReason: string | null;
+  enrollmentError: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  leadId: string;
+  batch: { id: string; name: string; course: string };
+  createdBy: { id: string; name: string };
+}
+
+export interface CheckoutInfo {
+  provider: "razorpay" | "fake";
+  keyId: string | null;
+  orderId: string;
+  amountPaise: number;
+  currency: string;
+  description: string;
+  prefill: { name: string; email: string; contact?: string };
+}
+
+export interface CheckoutResult {
+  orderId: string;
+  gatewayPaymentId: string;
+  signature: string;
+}
+
+export type Enrollment =
+  | { status: "ENROLLED"; studentId: string; welcomeEmail: { id: string; status: string }; temporaryPassword?: string }
+  | { status: "NOT_ENROLLED"; reason: string };
+
+export interface VerifyResult {
+  payment: Payment;
+  enrollment: Enrollment | null; // null when it had already been processed (e.g. by the webhook)
+  alreadyProcessed: boolean;
 }

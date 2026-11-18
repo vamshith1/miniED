@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Download, FileText, Pencil, Plus, UserMinus } from "lucide-react";
 import { api, downloadFile } from "../lib/api";
 import { useUser } from "../lib/auth";
-import { fmtBytes, fmtDate, fmtDay, fmtPct, fmtSeconds, todayYmd } from "../lib/format";
+import { fmtBytes, fmtDate, fmtDay, fmtMoney, fmtPct, fmtSeconds, todayYmd } from "../lib/format";
 import type { AttendanceDay, AttendanceStatus, Batch, BatchAttendanceSummary, DocumentInfo, Paginated, QuizSummary, Student, User } from "../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, QueryState, Select, Spinner, Table, Tabs, Td, Th, cx, askConfirm } from "../components/ui";
 import { BatchLeaderboardTable } from "../components/Leaderboards";
@@ -34,7 +34,7 @@ export function BatchDetailPage() {
                   {b.name} <Badge tone={batchStatus(b).tone}>{batchStatus(b).label}</Badge>
                 </span>
               }
-              subtitle={`${b.course} · ${fmtDay(b.startDate)}${b.endDate ? ` – ${fmtDay(b.endDate)}` : " onwards"} · mentor: ${b.mentor?.name ?? "none"}`}
+              subtitle={`${b.course} · ${fmtDay(b.startDate)}${b.endDate ? ` – ${fmtDay(b.endDate)}` : " onwards"} · mentor: ${b.mentor?.name ?? "none"}${b.feePaise ? ` · fee ${fmtMoney(b.feePaise)}` : ""}`}
               actions={
                 user.role === "ADMIN" && (
                   <Button variant="secondary" onClick={() => setEditing(true)}>

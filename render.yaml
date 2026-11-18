@@ -37,5 +37,7 @@ services:
         value: postgres # no Redis needed: email jobs live in Neon
       - key: FILE_STORAGE
         value: database # the free plan's disk is wiped on every deploy
+      # Course-fee payments are off unless you add these (see DEPLOY.md, "Payments"):
+      #   PAYMENT_PROVIDER=razorpay, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET
       - key: BCRYPT_ROUNDS
         value: "10" # the free CPU is slow; 10 keeps sign-in under a second or two

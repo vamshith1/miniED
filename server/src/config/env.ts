@@ -45,7 +45,26 @@ const schema = z.object({
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
   // In development, requests from this machine skip rate limits. true = apply them anyway.
   RATE_LIMIT_LOCAL: z.stringbool().default(false),
+
+  // ── Payments (course fees) ──
+  // razorpay = real gateway (test or live keys), fake = built-in test gateway for development
+  // and tests (never in production), off = no payments. Default: fake in development, off in production.
+  PAYMENT_PROVIDER: z.enum(["off", "fake", "razorpay"]).optional(),
+  RAZORPAY_KEY_ID: z.string().optional(), // rzp_test_... or rzp_live_...; public, sent to the browser
+  RAZORPAY_KEY_SECRET: z.string().optional(), // private: signs checkout results and calls the API
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(), // private: the secret set on the webhook in Razorpay's dashboard
 });
+
+// Settings that make no sense together, in any environment.
+function configProblems(e: z.infer<typeof schema> & { PAYMENT_PROVIDER: string }) {
+  const problems: string[] = [];
+  if (e.PAYMENT_PROVIDER === "razorpay") {
+    for (const k of ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"] as const) {
+      if (!e[k]) problems.push(`${k} is required when PAYMENT_PROVIDER=razorpay.`);
+    }
+  }
+  return problems;
+}
 
 // Settings that are fine on a laptop but unsafe or broken in production.
 function productionProblems(e: z.infer<typeof schema>) {
@@ -53,6 +72,7 @@ function productionProblems(e: z.infer<typeof schema>) {
   if (!e.SMTP_URL) problems.push("SMTP_URL is required: without it no email is actually sent.");
   if (!e.CLIENT_URL.startsWith("https://")) problems.push("CLIENT_URL must be the site's https:// address (links in emails and the session cookie depend on it).");
   if (/replace-with|change-me/i.test(e.JWT_SECRET)) problems.push("JWT_SECRET is still the example value. Generate a random one.");
+  if (e.PAYMENT_PROVIDER === "fake") problems.push("PAYMENT_PROVIDER=fake is the local test gateway: it accepts payments without real money. Use razorpay or off.");
   return problems;
 }
 
@@ -64,8 +84,20 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-if (parsed.data.NODE_ENV === "production") {
-  const problems = productionProblems(parsed.data);
+const resolved = {
+  ...parsed.data,
+  PAYMENT_PROVIDER: parsed.data.PAYMENT_PROVIDER ?? (parsed.data.NODE_ENV === "production" ? "off" : "fake"),
+};
+
+const conflicts = configProblems(resolved);
+if (conflicts.length) {
+  console.error("Invalid environment variables:");
+  conflicts.forEach((p) => console.error(` - ${p}`));
+  process.exit(1);
+}
+
+if (resolved.NODE_ENV === "production") {
+  const problems = productionProblems(resolved);
   if (problems.length) {
     console.error("Refusing to start in production:");
     problems.forEach((p) => console.error(` - ${p}`));
@@ -73,4 +105,4 @@ if (parsed.data.NODE_ENV === "production") {
   }
 }
 
-export const env = parsed.data;
+export const env = resolved;

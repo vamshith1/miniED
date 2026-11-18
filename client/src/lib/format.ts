@@ -49,3 +49,12 @@ export const relative = (iso: string) => {
 };
 
 export const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
+
+// Money is stored in paise (integers). ₹20,000.00 -> "₹20,000"; keeps paise only when there are some.
+export const fmtMoney = (paise: number | null | undefined, currency = "INR") =>
+  paise === null || paise === undefined
+    ? "—"
+    : new Intl.NumberFormat("en-IN", { style: "currency", currency, minimumFractionDigits: paise % 100 ? 2 : 0, maximumFractionDigits: 2 }).format(paise / 100);
+
+/** "20000.5" (rupees typed in a form) -> 2000050 paise; "" -> null; invalid -> NaN. */
+export const rupeesToPaise = (rupees: string) => (rupees.trim() === "" ? null : Math.round(Number(rupees) * 100));
