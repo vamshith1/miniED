@@ -55,12 +55,22 @@ const accounts = [
 
 const prisma = new PrismaClient();
 for (const a of accounts) {
+  const email = a.email.trim().toLowerCase();
   const passwordHash = await bcrypt.hash(a.password, 12);
-  await prisma.user.upsert({
-    where: { email: a.email.trim().toLowerCase() },
-    update: {},
-    create: { name: a.name, email: a.email.trim().toLowerCase(), role: a.role, passwordHash },
+  const existing = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  if (!existing) {
+    await prisma.user.create({ data: { name: a.name, email, role: a.role, passwordHash } });
+    console.log(`✔ ${a.role.padEnd(7)} ${email} (new account)`);
+    continue;
+  }
+  // The email is already in use (say someone signed up with it). Whoever runs the seed
+  // has the database itself, so make that account what was asked for: give it this
+  // role and password, reactivate it, and sign out its existing sessions.
+  await prisma.user.update({
+    where: { email },
+    data: { role: a.role, passwordHash, isActive: true, tokenVersion: { increment: 1 } },
   });
-  console.log(`✔ ${a.role.padEnd(7)} ${a.email}`);
+  const was = existing.role === a.role ? "" : `, was ${existing.role}`;
+  console.log(`✔ ${a.role.padEnd(7)} ${email} (existing account updated: role and password set${was})`);
 }
 await prisma.$disconnect();
