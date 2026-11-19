@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
-import { Loader2, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, X } from "lucide-react";
 import { ApiError } from "../lib/api";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -78,8 +78,32 @@ export function TextField({ label, error, hint, ...rest }: InputHTMLAttributes<H
   const id = useId();
   return (
     <Field label={label} error={error} hint={hint} htmlFor={id}>
-      <Input id={id} aria-invalid={!!error} {...rest} />
+      {rest.type === "password" ? <PasswordInput id={id} aria-invalid={!!error} {...rest} /> : <Input id={id} aria-invalid={!!error} {...rest} />}
     </Field>
+  );
+}
+
+/**
+ * A password box with a show/hide button, so people can check what they typed
+ * (handy when choosing a new password). It starts hidden every time.
+ */
+export function PasswordInput({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  const [shown, setShown] = useState(false);
+  const Icon = shown ? EyeOff : Eye;
+  return (
+    <div className="relative">
+      <Input {...rest} type={shown ? "text" : "password"} className={cx("pr-10", className)} />
+      <button
+        type="button" // never submits the form
+        onClick={() => setShown(!shown)}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted transition-colors hover:text-brand-strong focus-visible:text-brand-strong"
+        aria-label={shown ? "Hide password" : "Show password"}
+        aria-pressed={shown}
+        title={shown ? "Hide password" : "Show password"}
+      >
+        <Icon className="size-4" />
+      </button>
+    </div>
   );
 }
 
