@@ -1,12 +1,13 @@
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, FileText, Timer } from "lucide-react";
+import { CheckCircle2, Clock, Dumbbell, FileText, Timer } from "lucide-react";
 import { api } from "../../lib/api";
 import { useUser } from "../../lib/auth";
 import { fmtDay, fmtPct, fmtSeconds } from "../../lib/format";
 import type { Batch, MyAttendance, StudentQuiz } from "../../lib/types";
 import { Badge, Button, Card, EmptyState, PageHeader, QueryState, Stat, cx } from "../../components/ui";
 import { BatchLeaderboardTable } from "../../components/Leaderboards";
+import { fmtScore } from "../../components/Quiz";
 
 const dot: Record<string, string> = { PRESENT: "bg-good", LATE: "bg-warn", ABSENT: "bg-bad" };
 
@@ -39,7 +40,7 @@ export function StudentHomePage() {
     );
   }
 
-  const pending = quizzes.data?.filter((q) => !q.myAttempt || q.myAttempt.status === "IN_PROGRESS") ?? [];
+  const pending = quizzes.data?.filter((q) => q.mode === "TEST" && (!q.myAttempt || q.myAttempt.status === "IN_PROGRESS")) ?? [];
 
   return (
     <>
@@ -85,9 +86,21 @@ export function StudentHomePage() {
                   {items.map((q) => (
                     <li key={q.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                       <div className="min-w-0">
-                        <p className="font-medium">{q.title}</p>
+                        <p className="flex items-center gap-2 font-medium">
+                          {q.title} {q.mode === "PRACTICE" && <Badge tone="brand">Practice</Badge>}
+                        </p>
                         <p className="flex items-center gap-1 text-xs text-muted">
-                          <Timer className="size-3.5" /> {fmtSeconds(q.durationSeconds)} · {q._count.questions} questions
+                          {q.mode === "PRACTICE" ? (
+                            <>
+                              <Dumbbell className="size-3.5" /> No time limit · {q._count.questions} questions
+                            </>
+                          ) : (
+                            <>
+                              <Timer className="size-3.5" /> {fmtSeconds(q.durationSeconds)} · {q._count.questions} questions
+                            </>
+                          )}
+                          {q.negativePercent > 0 && <> · −{q.negativePercent}% for wrong answers</>}
+                          {q.passPercent != null && <> · pass {q.passPercent}%</>}
                         </p>
                       </div>
                       <QuizAction quiz={q} />
@@ -139,6 +152,17 @@ export function StudentHomePage() {
 }
 
 function QuizAction({ quiz }: { quiz: StudentQuiz }) {
+  if (quiz.mode === "PRACTICE")
+    return (
+      <div className="flex items-center gap-2">
+        {quiz.myPractice && <Badge>{quiz.myPractice.runs} go{quiz.myPractice.runs === 1 ? "" : "es"} · best {fmtPct(quiz.myPractice.bestPercentage)}</Badge>}
+        <Link to={`/quizzes/${quiz.id}/practice`}>
+          <Button size="sm" variant={quiz.myPractice ? "secondary" : "primary"}>
+            <Dumbbell className="size-4" /> {quiz.myPractice ? "Practise again" : "Practise"}
+          </Button>
+        </Link>
+      </div>
+    );
   const a = quiz.myAttempt;
   if (!a)
     return (
@@ -160,7 +184,7 @@ function QuizAction({ quiz }: { quiz: StudentQuiz }) {
         <Badge tone="bad">Time ran out</Badge>
       ) : (
         <Badge tone="good">
-          <CheckCircle2 className="mr-1 size-3.5" /> {a.score}/{a.maxScore}
+          <CheckCircle2 className="mr-1 size-3.5" /> {fmtScore(a.score)}/{a.maxScore}
         </Badge>
       )}
       <Link to={`/quizzes/${quiz.id}/result`} className="text-sm font-medium text-brand hover:underline">

@@ -122,10 +122,21 @@ export interface Question {
   id: string;
   text: string;
   points: number;
+  skill?: string | null;
+  explanation?: string | null;
   options: Option[];
 }
 
-export interface QuizSummary {
+export type QuizMode = "TEST" | "PRACTICE";
+
+/** Marking settings every quiz carries. */
+export interface QuizRules {
+  mode: QuizMode;
+  negativePercent: number; // share of a question's points lost for a wrong answer; skipping costs nothing
+  passPercent: number | null;
+}
+
+export interface QuizSummary extends QuizRules {
   id: string;
   title: string;
   description: string | null;
@@ -136,7 +147,7 @@ export interface QuizSummary {
   _count: { questions: number; attempts: number };
 }
 
-export interface StudentQuiz {
+export interface StudentQuiz extends QuizRules {
   id: string;
   title: string;
   description: string | null;
@@ -144,6 +155,7 @@ export interface StudentQuiz {
   createdAt: string;
   _count: { questions: number };
   myAttempt: { status: "IN_PROGRESS" | "SUBMITTED" | "EXPIRED"; score: number; maxScore: number } | null;
+  myPractice: { runs: number; bestPercentage: number } | null;
 }
 
 export interface FullQuiz extends QuizSummary {
@@ -166,8 +178,25 @@ export interface StartedAttempt {
   attemptId: string;
   startedAt: string;
   expiresAt: string;
-  quiz: { id: string; title: string; description: string | null; durationSeconds: number };
+  quiz: { id: string; title: string; description: string | null; durationSeconds: number } & QuizRules;
   questions: Question[];
+}
+
+export interface PracticeRun {
+  id: string;
+  score: number;
+  maxScore: number;
+  correct: number;
+  wrong: number;
+  skipped: number;
+  timeTakenMs: number | null;
+  createdAt: string;
+}
+
+export interface PracticeSession {
+  quiz: StartedAttempt["quiz"];
+  questions: Question[];
+  runs: PracticeRun[]; // newest first
 }
 
 export interface QuizResult {
@@ -175,12 +204,21 @@ export interface QuizResult {
   score: number;
   maxScore: number;
   percentage: number;
+  passPercent: number | null;
+  passed: boolean | null; // null when the quiz has no pass mark
+  negativePercent: number;
+  correct: number;
+  wrong: number;
+  skipped: number;
   timeTakenMs: number | null;
   submittedAt: string | null;
+  runs?: PracticeRun[]; // practice only: every go so far
   review: {
     questionId: string;
     text: string;
     points: number;
+    skill: string | null;
+    explanation: string | null;
     options: Required<Option>[];
     yourOptionId: string | null;
     correct: boolean;
@@ -347,6 +385,8 @@ export interface QuizHistoryItem {
   score: number;
   maxScore: number;
   percentage: number;
+  passPercent: number | null;
+  passed: boolean | null;
   timeTakenMs: number;
   durationSeconds: number;
   rank: number | null;
@@ -386,4 +426,22 @@ export interface TimeSpent {
     averagePerActiveWeekMinutes: number;
   };
   weeks: { weekStart: string; classMinutes: number; quizMinutes: number; daysAttended: number; quizzes: number }[];
+}
+
+export type SkillLevel = "STRONG" | "OK" | "GAP";
+
+export interface SkillRow {
+  skill: string;
+  questions: number;
+  correct: number;
+  wrong: number;
+  skipped: number;
+  accuracy: number;
+  level: SkillLevel;
+}
+
+export interface SkillReport {
+  skills: SkillRow[]; // weakest first
+  gaps: string[];
+  strengths: string[];
 }

@@ -421,7 +421,12 @@ function QuizzesTab({ batch }: { batch: Batch }) {
                       </Link>
                       <div className="text-xs text-muted">Created {fmtDate(q.createdAt)}</div>
                     </Td>
-                    <Td>{q.isPublished ? <Badge tone="good">Published</Badge> : <Badge>Draft</Badge>}</Td>
+                    <Td>
+                      <span className="flex flex-wrap gap-1">
+                        {q.isPublished ? <Badge tone="good">Published</Badge> : <Badge>Draft</Badge>}
+                        {q.mode === "PRACTICE" && <Badge tone="brand">Practice</Badge>}
+                      </span>
+                    </Td>
                     <Td className="text-right tabular-nums">{q._count.questions}</Td>
                     <Td className="text-right">{fmtSeconds(q.durationSeconds)}</Td>
                     <Td className="text-right tabular-nums">{q._count.attempts}</Td>

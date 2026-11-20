@@ -5,29 +5,51 @@ import { AlertTriangle, ArrowLeft, Check, Cloud, CloudOff, History, Loader2, Plu
 import { api } from "../lib/api";
 import { fmtDateTime, fmtDuration, fmtSeconds, relative } from "../lib/format";
 import { clearBackup, readBackup, useLeaveWarning, writeBackup, type Backup } from "../lib/draft-backup";
-import type { Attempt, Batch, FullQuiz } from "../lib/types";
-import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, PageHeader, QueryState, Table, Tabs, Td, TextField, Textarea, Th, cx, askConfirm } from "../components/ui";
+import type { Attempt, Batch, FullQuiz, QuizMode } from "../lib/types";
+import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, PageHeader, QueryState, Select, Table, Tabs, Td, TextField, Textarea, Th, cx, askConfirm } from "../components/ui";
+import { RulesNote, fmtScore } from "../components/Quiz";
 import { QuizLeaderboardTable } from "../components/Leaderboards";
 
 // The draft as edited in the form (no ids: PUT replaces every question).
 interface DraftOption { text: string; isCorrect: boolean }
-interface DraftQuestion { text: string; points: number; options: DraftOption[] }
-interface Draft { title: string; description: string; minutes: number; questions: DraftQuestion[] }
+interface DraftQuestion { text: string; points: number; skill?: string; explanation?: string; options: DraftOption[] }
+// mode/negativePercent/passPercent are optional so copies saved on this device before they existed still load.
+interface Draft { title: string; description: string; minutes: number; mode?: QuizMode; negativePercent?: number; passPercent?: number | null; questions: DraftQuestion[] }
 
-const blankQuestion = (): DraftQuestion => ({ text: "", points: 1, options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
+const blankQuestion = (): DraftQuestion => ({ text: "", points: 1, skill: "", explanation: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
+
+const NEGATIVE_CHOICES = [0, 25, 33, 50, 100];
 
 const toDraft = (q: FullQuiz): Draft => ({
   title: q.title,
   description: q.description ?? "",
   minutes: Math.round((q.durationSeconds / 60) * 10) / 10,
-  questions: q.questions.map((x) => ({ text: x.text, points: x.points, options: x.options.map((o) => ({ text: o.text, isCorrect: !!o.isCorrect })) })),
+  mode: q.mode,
+  negativePercent: q.negativePercent,
+  passPercent: q.passPercent,
+  questions: q.questions.map((x) => ({
+    text: x.text,
+    points: x.points,
+    skill: x.skill ?? "",
+    explanation: x.explanation ?? "",
+    options: x.options.map((o) => ({ text: o.text, isCorrect: !!o.isCorrect })),
+  })),
 });
 
 const toBody = (d: Draft) => ({
   title: d.title.trim(),
   ...(d.description.trim() && { description: d.description.trim() }),
   durationSeconds: Math.round(d.minutes * 60),
-  questions: d.questions.map((q) => ({ text: q.text.trim(), points: q.points, options: q.options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })) })),
+  mode: d.mode ?? "TEST",
+  negativePercent: d.negativePercent ?? 0,
+  passPercent: d.passPercent ?? null,
+  questions: d.questions.map((q) => ({
+    text: q.text.trim(),
+    points: q.points,
+    skill: q.skill?.trim() || null,
+    explanation: q.explanation?.trim() || null,
+    options: q.options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })),
+  })),
 });
 
 // Problems the server would reject, shown before saving.
@@ -35,6 +57,7 @@ function problems(d: Draft) {
   const out: string[] = [];
   if (d.title.trim().length < 2) out.push("Give the quiz a title.");
   if (!(d.minutes >= 0.5 && d.minutes <= 180)) out.push("The time limit must be between 30 seconds and 3 hours.");
+  if (d.passPercent != null && !(d.passPercent >= 1 && d.passPercent <= 100)) out.push("The pass mark must be between 1% and 100%.");
   d.questions.forEach((q, i) => {
     if (!q.text.trim()) out.push(`Question ${i + 1} has no text.`);
     if (q.options.some((o) => !o.text.trim())) out.push(`Question ${i + 1} has an empty option.`);
@@ -50,7 +73,7 @@ export function QuizEditorPage() {
 // Wait this long after the last edit before autosaving.
 const AUTOSAVE_MS = 1500;
 
-const blankDraft = (): Draft => ({ title: "", description: "", minutes: 10, questions: [blankQuestion()] });
+const blankDraft = (): Draft => ({ title: "", description: "", minutes: 10, mode: "TEST", negativePercent: 0, passPercent: null, questions: [blankQuestion()] });
 const BLANK_JSON = JSON.stringify(blankDraft());
 
 /** Offers back unsaved work found on this device (after a reload, crash or closed tab). */
@@ -353,8 +376,44 @@ function DraftForm({ draft, onChange }: { draft: Draft; onChange: (d: Draft) => 
       <Card title="Settings">
         <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
           <TextField label="Title" value={draft.title} onChange={(e) => onChange({ ...draft, title: e.target.value })} maxLength={200} />
-          <TextField label="Time limit (minutes)" type="number" min={0.5} max={180} step={0.5} value={draft.minutes} onChange={(e) => onChange({ ...draft, minutes: Number(e.target.value) })} />
+          <TextField
+            label="Time limit (minutes)"
+            hint={draft.mode === "PRACTICE" ? "Not enforced in practice" : undefined}
+            type="number"
+            min={0.5}
+            max={180}
+            step={0.5}
+            value={draft.minutes}
+            onChange={(e) => onChange({ ...draft, minutes: Number(e.target.value) })}
+          />
         </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Field label="Type" htmlFor="quiz-mode">
+            <Select id="quiz-mode" value={draft.mode ?? "TEST"} onChange={(e) => onChange({ ...draft, mode: e.target.value as QuizMode })}>
+              <option value="TEST">Test: one timed, ranked attempt</option>
+              <option value="PRACTICE">Practice: unlimited goes, not ranked</option>
+            </Select>
+          </Field>
+          <Field label="Negative marking" htmlFor="quiz-negative">
+            <Select id="quiz-negative" value={draft.negativePercent ?? 0} onChange={(e) => onChange({ ...draft, negativePercent: Number(e.target.value) })}>
+              {NEGATIVE_CHOICES.map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? "None" : `Lose ${n}% of the points for a wrong answer`}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <TextField
+            label="Pass mark (%)"
+            hint="Leave empty for no pass/fail"
+            type="number"
+            min={1}
+            max={100}
+            value={draft.passPercent ?? ""}
+            onChange={(e) => onChange({ ...draft, passPercent: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </div>
+        <RulesNote rules={{ mode: draft.mode ?? "TEST", negativePercent: draft.negativePercent ?? 0, passPercent: draft.passPercent ?? null }} className="mt-2 text-xs" />
         <div className="mt-3">
           <Field label="Instructions (optional)">
             <Textarea rows={2} value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} maxLength={2000} />
@@ -379,6 +438,16 @@ function DraftForm({ draft, onChange }: { draft: Draft; onChange: (d: Draft) => 
           }
         >
           <Textarea rows={2} placeholder="Question text" value={q.text} onChange={(e) => setQ(i, { ...q, text: e.target.value })} aria-label={`Question ${i + 1} text`} />
+          <div className="mt-2">
+            <Input
+              list="quiz-skills"
+              placeholder="Skill it checks, e.g. SQL joins (optional, feeds the skill-gap report)"
+              value={q.skill ?? ""}
+              maxLength={60}
+              onChange={(e) => setQ(i, { ...q, skill: e.target.value })}
+              aria-label={`Question ${i + 1} skill`}
+            />
+          </div>
           <p className="mb-2 mt-3 text-xs text-muted">Options: pick the one correct answer.</p>
           <ul className="space-y-2">
             {q.options.map((o, oi) => (
@@ -417,9 +486,24 @@ function DraftForm({ draft, onChange }: { draft: Draft; onChange: (d: Draft) => 
               <Plus className="size-4" /> Add option
             </Button>
           )}
+          <Textarea
+            rows={2}
+            className="mt-3"
+            placeholder="Explanation shown with the answer after submitting (optional): why the correct option is right"
+            value={q.explanation ?? ""}
+            maxLength={2000}
+            onChange={(e) => setQ(i, { ...q, explanation: e.target.value })}
+            aria-label={`Question ${i + 1} explanation`}
+          />
         </Card>
       ))}
 
+      {/* Skills already used in this quiz, offered as suggestions in every skill box */}
+      <datalist id="quiz-skills">
+        {[...new Set(draft.questions.map((q) => q.skill?.trim()).filter(Boolean))].map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
       <div className="flex items-center justify-between">
         <Button variant="secondary" onClick={() => onChange({ ...draft, questions: [...draft.questions, blankQuestion()] })}>
           <Plus className="size-4" /> Add question
@@ -445,7 +529,12 @@ function PublishedQuiz({ quiz }: { quiz: FullQuiz }) {
             {quiz.title} <Badge tone="good">Published</Badge>
           </span>
         }
-        subtitle={`${quiz.batch.name} · ${quiz.questions.length} questions · ${fmtSeconds(quiz.durationSeconds)} · by ${quiz.createdBy.name}`}
+        subtitle={
+          <>
+            {quiz.batch.name} · {quiz.mode === "PRACTICE" ? "practice" : fmtSeconds(quiz.durationSeconds)} · {quiz.questions.length} questions · by {quiz.createdBy.name}
+            <RulesNote rules={quiz} className="mt-1 text-xs" />
+          </>
+        }
       />
       <Tabs<PublishedTab>
         value={tab}
@@ -483,7 +572,7 @@ function PublishedQuiz({ quiz }: { quiz: FullQuiz }) {
                         <Td>
                           <Badge tone={a.status === "SUBMITTED" ? "good" : a.status === "EXPIRED" ? "bad" : "warn"}>{a.status === "IN_PROGRESS" ? "In progress" : a.status.toLowerCase()}</Badge>
                         </Td>
-                        <Td className="text-right tabular-nums">{a.status === "IN_PROGRESS" ? "—" : `${a.score}/${a.maxScore}`}</Td>
+                        <Td className="text-right tabular-nums">{a.status === "IN_PROGRESS" ? "—" : `${fmtScore(a.score)}/${a.maxScore}`}</Td>
                         <Td className="text-right tabular-nums text-muted">{fmtDuration(a.timeTakenMs)}</Td>
                         <Td className="text-muted">{fmtDateTime(a.submittedAt)}</Td>
                       </tr>
@@ -504,7 +593,7 @@ function PublishedQuiz({ quiz }: { quiz: FullQuiz }) {
         <div className="space-y-3">
           {quiz.description && <p className="text-sm text-muted">{quiz.description}</p>}
           {quiz.questions.map((q, i) => (
-            <Card key={q.id} title={`${i + 1}. ${q.text}`} actions={<span className="text-xs text-muted">{q.points} pt</span>}>
+            <Card key={q.id} title={`${i + 1}. ${q.text}`} actions={<span className="flex items-center gap-2 text-xs text-muted">{q.skill && <Badge tone="brand">{q.skill}</Badge>}{q.points} pt</span>}>
               <ul className="space-y-1.5">
                 {q.options.map((o) => (
                   <li key={o.id} className={cx("flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm", o.isCorrect ? "bg-good-soft font-medium text-good" : "text-muted")}>
@@ -512,6 +601,7 @@ function PublishedQuiz({ quiz }: { quiz: FullQuiz }) {
                   </li>
                 ))}
               </ul>
+              {q.explanation && <p className="mt-2 text-sm text-muted">Explanation: {q.explanation}</p>}
             </Card>
           ))}
         </div>

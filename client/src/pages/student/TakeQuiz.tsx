@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Timer } from "lucide-react";
 import { ApiError, api } from "../../lib/api";
 import type { StartedAttempt } from "../../lib/types";
 import { Button, Card, ErrorBox, Spinner, cx, askConfirm } from "../../components/ui";
+import { QuestionList, RulesNote } from "../../components/Quiz";
 
 // Answers are kept in sessionStorage so a reload doesn't lose them.
 // The timer itself is the server's: expiresAt comes from startedAt.
@@ -136,7 +137,7 @@ function Attempt({ attempt }: { attempt: StartedAttempt }) {
           </span>
           <Button
             loading={submit.isPending}
-            onClick={async () => (answered === total || (await askConfirm(`${total - answered} question(s) unanswered. They'll count as wrong. Submit anyway?`, { confirmLabel: "Submit" }))) && doSubmit()}
+            onClick={async () => (answered === total || (await askConfirm(`${total - answered} question(s) unanswered. They count as skipped: no marks, and no penalty. Submit anyway?`, { confirmLabel: "Submit" }))) && doSubmit()}
           >
             Submit
           </Button>
@@ -148,41 +149,11 @@ function Attempt({ attempt }: { attempt: StartedAttempt }) {
           <AlertTriangle className="size-4" /> Less than a minute left. It submits automatically at 0:00.
         </p>
       )}
-      {attempt.quiz.description && <p className="mb-4 text-sm text-muted">{attempt.quiz.description}</p>}
+      {attempt.quiz.description && <p className="mb-2 text-sm text-muted">{attempt.quiz.description}</p>}
+      <RulesNote rules={attempt.quiz} className="mb-4" />
       <ErrorBox error={submit.error instanceof ApiError && submit.error.status === 409 ? null : submit.error} />
 
-      <ol className="space-y-3">
-        {attempt.questions.map((q, i) => (
-          <li key={q.id}>
-            <Card>
-              <fieldset>
-                <legend className="mb-3 flex w-full justify-between gap-3 font-medium">
-                  <span>
-                    {i + 1}. {q.text}
-                  </span>
-                  <span className="shrink-0 text-xs font-normal text-muted">
-                    {q.points} pt{q.points === 1 ? "" : "s"}
-                  </span>
-                </legend>
-                <div className="space-y-2">
-                  {q.options.map((o) => (
-                    <label
-                      key={o.id}
-                      className={cx(
-                        "flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm",
-                        answers[q.id] === o.id ? "border-brand bg-brand-soft" : "border-line hover:bg-canvas",
-                      )}
-                    >
-                      <input type="radio" name={q.id} checked={answers[q.id] === o.id} onChange={() => setAnswers({ ...answers, [q.id]: o.id })} className="size-4 accent-brand" disabled={remaining === 0} />
-                      {o.text}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            </Card>
-          </li>
-        ))}
-      </ol>
+      <QuestionList questions={attempt.questions} answers={answers} onChange={setAnswers} disabled={remaining === 0} negativePercent={attempt.quiz.negativePercent} />
     </>
   );
 }

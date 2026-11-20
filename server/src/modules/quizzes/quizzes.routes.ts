@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { param } from "../../lib/params.js";
 import { limits } from "../../middleware/rate-limit.js";
-import { createQuizSchema, listQuizzesQuery, replaceQuizSchema, submitSchema } from "./quizzes.schemas.js";
+import { createQuizSchema, listQuizzesQuery, practiceSubmitSchema, replaceQuizSchema, submitSchema } from "./quizzes.schemas.js";
 import * as quizzes from "./quizzes.service.js";
 import * as attempts from "./quizzes.attempts.js";
 import { getQuizLeaderboard } from "./leaderboard.js";
@@ -63,6 +63,16 @@ quizzesRouter.post("/:id/submit", student, limits.quizSubmit, async (req, res) =
 
 quizzesRouter.get("/:id/result", student, async (req, res) => {
   res.json(await attempts.getMyResult(param(req, "id"), req.user!));
+});
+
+// ---- Practice (students): unlimited goes, never ranked
+
+quizzesRouter.get("/:id/practice", student, async (req, res) => {
+  res.json(await attempts.getPractice(param(req, "id"), req.user!));
+});
+
+quizzesRouter.post("/:id/practice", student, limits.quizSubmit, async (req, res) => {
+  res.json(await attempts.submitPractice(param(req, "id"), practiceSubmitSchema.parse(req.body), req.user!));
 });
 
 // ---- Leaderboard (managers and students of the batch) ----

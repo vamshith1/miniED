@@ -48,6 +48,7 @@ model User {
   attendanceMarked Attendance[]         @relation("AttendanceMarker")
   quizzesCreated   Quiz[]
   quizAttempts     QuizAttempt[]
+  practiceRuns     PracticeRun[]
   documents        Document[]
   passwordResets   PasswordResetToken[]
   paymentsCreated  Payment[]            @relation("PaymentCreator")
@@ -212,6 +213,14 @@ model Quiz {
   description     String?
   durationSeconds Int // time limit, enforced on the server at submit
   isPublished     Boolean  @default(false)
+  // TEST: one timed, ranked attempt. PRACTICE: retake as often as you like, with the
+  // answers and explanations straight after; never ranked.
+  mode            QuizMode @default(TEST)
+  // Share of a question's points taken off for a wrong answer (0 = no negative marking).
+  // A skipped question never costs anything, so guessing can't inflate a score.
+  negativePercent Int      @default(0)
+  // Pass mark as a percentage of the maximum score. Null = no pass/fail.
+  passPercent     Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -220,17 +229,27 @@ model Quiz {
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
-  questions Question[]
-  attempts  QuizAttempt[]
+  questions    Question[]
+  attempts     QuizAttempt[]
+  practiceRuns PracticeRun[]
 
   @@index([batchId, isPublished])
+}
+
+enum QuizMode {
+  TEST
+  PRACTICE
 }
 
 model Question {
   id       String @id @default(cuid())
   text     String
-  points   Int    @default(1)
-  position Int // display order within the quiz
+  points      Int     @default(1)
+  position    Int // display order within the quiz
+  // The skill this question checks (e.g. "SQL joins"). Drives the skill-gap report.
+  skill       String?
+  // Shown with the answer after submitting: why the right option is right.
+  explanation String?
 
   quizId  String
   quiz    Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
@@ -264,7 +283,8 @@ model QuizAttempt {
   status      AttemptStatus @default(IN_PROGRESS)
   startedAt   DateTime      @default(now())
   submittedAt DateTime?
-  score       Int           @default(0)
+  // A Float because negative marking takes off fractions of a point. Never below 0.
+  score       Float         @default(0)
   maxScore    Int           @default(0)
   timeTakenMs Int? // tie-breaker on the leaderboard
 
@@ -293,6 +313,27 @@ model AttemptAnswer {
   option     Option?     @relation(fields: [optionId], references: [id], onDelete: SetNull)
 
   @@unique([attemptId, questionId])
+}
+
+// One go at a practice quiz. Practice can be repeated, so it's kept apart from
+// QuizAttempt (one per student per quiz) and never reaches a leaderboard.
+model PracticeRun {
+  id          String   @id @default(cuid())
+  score       Float
+  maxScore    Int
+  correct     Int
+  wrong       Int
+  skipped     Int
+  timeTakenMs Int?
+  createdAt   DateTime @default(now())
+
+  quizId    String
+  quiz      Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+  @@index([quizId, studentId])
 }
 
 // ─────────────────────────────── Files ───────────────────────────────────────

@@ -22,6 +22,8 @@ const questionCreates = (questions: QuizContent["questions"]) =>
   questions.map((q, qi) => ({
     text: q.text,
     points: q.points,
+    skill: q.skill,
+    explanation: q.explanation,
     position: qi,
     options: { create: q.options.map((o, oi) => ({ text: o.text, isCorrect: o.isCorrect, position: oi })) },
   }));
@@ -95,12 +97,25 @@ export async function listQuizzes(user: AuthUser, batchId?: string) {
         title: true,
         description: true,
         durationSeconds: true,
+        mode: true,
+        negativePercent: true,
+        passPercent: true,
         createdAt: true,
         _count: { select: { questions: true } },
         attempts: { where: { studentId: user.id }, select: { status: true, score: true, maxScore: true } },
+        practiceRuns: { where: { studentId: user.id }, select: { score: true, maxScore: true } },
       },
     });
-    return quizzes.map(({ attempts, ...q }) => ({ ...q, myAttempt: attempts[0] ?? null }));
+    return quizzes.map(({ attempts, practiceRuns, ...q }) => ({
+      ...q,
+      myAttempt: attempts[0] ?? null,
+      myPractice: practiceRuns.length
+        ? {
+            runs: practiceRuns.length,
+            bestPercentage: Math.max(...practiceRuns.map((r) => (r.maxScore ? Math.round((r.score / r.maxScore) * 1000) / 10 : 0))),
+          }
+        : null,
+    }));
   }
 
   if (batchId) await assertCanManageBatch(batchId, user);

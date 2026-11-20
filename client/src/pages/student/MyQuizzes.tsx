@@ -1,12 +1,13 @@
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Award, BarChart3, Clock, Medal, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { Award, BarChart3, Clock, Crosshair, Medal, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { api } from "../../lib/api";
 import { fmtDate, fmtDuration, fmtPct } from "../../lib/format";
-import type { QuizHistory, QuizHistoryItem } from "../../lib/types";
+import type { QuizHistory, QuizHistoryItem, SkillReport } from "../../lib/types";
 import { AnimatedNumber, Badge, Card, EmptyState, PageHeader, QueryState, Stat, Table, Td, Th, cx } from "../../components/ui";
 import { AXIS_TEXT, ChartTooltip, GRID, SERIES_1, SERIES_2, SeriesLegend, TICK } from "../../components/charts";
+import { SkillBars, fmtScore } from "../../components/Quiz";
 
 const pctFmt = (n: number) => `${Math.round(n * 10) / 10}%`;
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
@@ -30,6 +31,7 @@ function VsClass({ item }: { item: QuizHistoryItem }) {
 
 export function MyQuizzesPage() {
   const history = useQuery({ queryKey: ["progress", "quizzes"], queryFn: () => api.get<QuizHistory>("/progress/quizzes") });
+  const skills = useQuery({ queryKey: ["progress", "skills"], queryFn: () => api.get<SkillReport>("/progress/skills") });
 
   return (
     <>
@@ -92,6 +94,31 @@ export function MyQuizzesPage() {
                 </Card>
               </div>
 
+              <div className="animate-fade-up" style={{ animationDelay: "225ms" }}>
+                <Card
+                  title={
+                    <span className="flex items-center gap-2">
+                      <Crosshair className="size-4 text-brand-strong" /> Skills: where to focus
+                    </span>
+                  }
+                >
+                  <QueryState query={skills}>
+                    {(r) => (
+                      <>
+                        {r.gaps.length > 0 ? (
+                          <p className="mb-3 text-sm">
+                            Work on <strong>{r.gaps.join(", ")}</strong>: under half your answers there were right. Ask your mentor for a practice quiz on {r.gaps.length === 1 ? "it" : "them"}.
+                          </p>
+                        ) : r.skills.length > 0 ? (
+                          <p className="mb-3 text-sm text-good">No skill gaps right now: every skill is at 50% or better.</p>
+                        ) : null}
+                        <SkillBars skills={r.skills} empty="Skills show up once your tests have questions tagged with one." />
+                      </>
+                    )}
+                  </QueryState>
+                </Card>
+              </div>
+
               <div className="animate-fade-up" style={{ animationDelay: "250ms" }}>
                 <Card title="Every attempt" padded={false}>
                   <Table>
@@ -118,13 +145,18 @@ export function MyQuizzesPage() {
                           <Td className="whitespace-nowrap text-muted">{fmtDate(i.takenAt)}</Td>
                           <Td className="whitespace-nowrap text-right">
                             <div className="font-semibold tabular-nums">
-                              {i.score}/{i.maxScore}
+                              {fmtScore(i.score)}/{i.maxScore}
                             </div>
                             <div className={cx("text-xs tabular-nums", i.percentage >= 75 ? "text-good" : i.percentage < 40 ? "text-bad" : "text-muted")}>{fmtPct(i.percentage)}</div>
                           </Td>
                           <Td className="whitespace-nowrap">
                             {i.status === "EXPIRED" ? (
                               <Badge tone="bad">Time ran out</Badge>
+                            ) : i.passed === false ? (
+                              <span className="inline-flex flex-col">
+                                <Badge tone="bad">Not passed</Badge>
+                                {i.rank && <span className="mt-0.5 text-xs text-muted">{ordinal(i.rank)} of {i.outOf}</span>}
+                              </span>
                             ) : i.rank ? (
                               <span className="inline-flex items-center gap-1.5">
                                 {i.rank === 1 && <Medal className="size-4 text-warn" />}

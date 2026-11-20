@@ -25,7 +25,7 @@ export async function quizHistory(user: AuthUser) {
       timeTakenMs: true,
       startedAt: true,
       submittedAt: true,
-      quiz: { select: { id: true, title: true, durationSeconds: true, batch: { select: { name: true } } } },
+      quiz: { select: { id: true, title: true, durationSeconds: true, passPercent: true, batch: { select: { name: true } } } },
     },
   });
 
@@ -53,6 +53,8 @@ export async function quizHistory(user: AuthUser) {
       score: a.score,
       maxScore: a.maxScore,
       percentage: pct(a.score, a.maxScore) ?? 0,
+      passPercent: a.quiz.passPercent,
+      passed: a.quiz.passPercent == null ? null : (pct(a.score, a.maxScore) ?? 0) >= a.quiz.passPercent,
       // An expired attempt used the whole time limit.
       timeTakenMs: a.timeTakenMs ?? a.quiz.durationSeconds * 1000,
       durationSeconds: a.quiz.durationSeconds,
