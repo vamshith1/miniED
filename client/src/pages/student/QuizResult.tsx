@@ -23,12 +23,16 @@ export function QuizResultPage() {
           <>
             <PageHeader title="Your result" subtitle={r.status === "EXPIRED" ? "Time ran out before this was submitted, so it scores 0." : undefined} />
             <ResultStats r={r} />
-            <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+            {r.isHiringTest ? (
               <AnswerReview review={r.review} negativePercent={r.negativePercent} />
-              <Card title="Leaderboard" padded={false} className="self-start">
-                <QuizLeaderboardTable quizId={id} meId={user.id} />
-              </Card>
-            </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+                <AnswerReview review={r.review} negativePercent={r.negativePercent} />
+                <Card title="Leaderboard" padded={false} className="self-start">
+                  <QuizLeaderboardTable quizId={id} meId={user.id} />
+                </Card>
+              </div>
+            )}
           </>
         )}
       </QueryState>

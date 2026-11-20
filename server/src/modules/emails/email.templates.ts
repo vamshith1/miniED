@@ -15,9 +15,20 @@ export type EmailPayloads = {
   "password-reset": { userId: string; sealedToken: string };
   "password-changed": { userId: string; how: "changed" | "reset" };
   "payment-receipt": { paymentId: string };
+  "application-update": { applicationId: string };
+  "interview-scheduled": { interviewId: string };
 };
 export type EmailTemplate = keyof EmailPayloads;
-export const TEMPLATES = ["welcome", "quiz-result", "lead-follow-up", "password-reset", "password-changed", "payment-receipt"] as const satisfies EmailTemplate[];
+export const TEMPLATES = [
+  "welcome",
+  "quiz-result",
+  "lead-follow-up",
+  "password-reset",
+  "password-changed",
+  "payment-receipt",
+  "application-update",
+  "interview-scheduled",
+] as const satisfies EmailTemplate[];
 
 // Retrying won't help (e.g. the user was deleted), so the queue gives up at once.
 export class PermanentEmailError extends Error {}
@@ -71,7 +82,7 @@ ${button(loginUrl, "Sign in")}`,
 async function quizResult({ attemptId }: EmailPayloads["quiz-result"]): Promise<Rendered> {
   const attempt = await prisma.quizAttempt.findUnique({
     where: { id: attemptId },
-    include: { student: { select: { name: true } }, quiz: { select: { id: true, title: true } } },
+    include: { student: { select: { name: true } }, quiz: { select: { id: true, title: true, jobId: true } } },
   });
   if (!attempt || attempt.status !== "SUBMITTED") throw new PermanentEmailError("Attempt not found or not submitted");
 
@@ -88,7 +99,8 @@ async function quizResult({ attemptId }: EmailPayloads["quiz-result"]): Promise<
   const secs = Math.round((attempt.timeTakenMs ?? 0) / 1000);
   const time = `${Math.floor(secs / 60)}m ${secs % 60}s`;
   const url = `${env.CLIENT_URL}/quizzes/${attempt.quiz.id}/result`;
-  const summary = `You scored ${attempt.score}/${attempt.maxScore} (${pct}%) in ${time}. You're currently #${ahead + 1} of ${total}.`;
+  // A hiring test doesn't tell applicants where they stand against each other.
+  const summary = `You scored ${attempt.score}/${attempt.maxScore} (${pct}%) in ${time}.${attempt.quiz.jobId ? "" : ` You're currently #${ahead + 1} of ${total}.`}`;
 
   return {
     subject: `Your result: ${attempt.quiz.title}`,
@@ -205,6 +217,60 @@ ${rows.map(([k, v]) => `<tr style="border-top:1px solid #e4e7eb"><td style="padd
   };
 }
 
+const statusText: Record<string, string> = {
+  APPLIED: "is back to applied",
+  SHORTLISTED: "has been shortlisted",
+  INTERVIEW: "has moved to interviews",
+  OFFERED: "has an offer",
+  HIRED: "is marked as hired. Congratulations!",
+  REJECTED: "wasn't taken forward this time",
+};
+
+async function applicationUpdate({ applicationId }: EmailPayloads["application-update"]): Promise<Rendered> {
+  const a = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+    include: { student: { select: { name: true } }, job: { select: { title: true, company: true } } },
+  });
+  if (!a || a.status === "WITHDRAWN") throw new PermanentEmailError("Application not found or withdrawn");
+  const line = `Your application for ${a.job.title} at ${a.job.company} ${statusText[a.status] ?? "was updated"}.`;
+  const url = `${env.CLIENT_URL}/careers`;
+  return {
+    subject: `${a.job.company}: your application ${a.status === "REJECTED" ? "update" : statusText[a.status]?.split(".")[0] ?? "update"}`,
+    text: `Hi ${a.student.name},\n\n${line}\n\nSee your applications: ${url}`,
+    html: layout(`${a.job.title} at ${a.job.company}`, `<p>Hi ${esc(a.student.name)},</p><p>${esc(line)}</p>${button(url, "See your applications")}`),
+  };
+}
+
+const modeText = { ONLINE: "Online", IN_PERSON: "In person", PHONE: "Phone" } as const;
+
+async function interviewScheduled({ interviewId }: EmailPayloads["interview-scheduled"]): Promise<Rendered> {
+  const i = await prisma.interview.findUnique({
+    where: { id: interviewId },
+    include: { application: { include: { student: { select: { name: true } }, job: { select: { title: true, company: true } } } } },
+  });
+  if (!i) throw new PermanentEmailError("Interview not found");
+  const { student, job } = i.application;
+  const when = i.scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: process.env.TZ || "Asia/Kolkata" });
+  const rows: [string, string][] = [
+    ["When", `${when} (${i.durationMinutes} min)`],
+    ["How", modeText[i.mode]],
+    ...(i.location ? ([["Where", i.location]] as [string, string][]) : []),
+    ...(i.notes ? ([["To prepare", i.notes]] as [string, string][]) : []),
+  ];
+  const url = `${env.CLIENT_URL}/careers`;
+  return {
+    subject: `Interview: ${job.title} at ${job.company}, ${when}`,
+    text: [`Hi ${student.name},`, `You have an interview for ${job.title} at ${job.company}.`, ...rows.map(([k, v]) => `${k}: ${v}`), `Details: ${url}`].join("\n\n"),
+    html: layout(
+      `Interview: ${job.title}`,
+      `<p>Hi ${esc(student.name)},</p><p>You have an interview with <b>${esc(job.company)}</b>.</p>
+<table style="width:100%;border-collapse:collapse;font-size:14px">
+${rows.map(([k, v]) => `<tr style="border-top:1px solid #e4e7eb"><td style="padding:8px 0;color:#52606d;vertical-align:top">${esc(k)}</td><td style="padding:8px 0">${esc(v)}</td></tr>`).join("\n")}
+</table>${button(url, "See it in MiniEdCRM")}`,
+    ),
+  };
+}
+
 export async function render<T extends EmailTemplate>(template: T, payload: EmailPayloads[T]): Promise<Rendered> {
   switch (template) {
     case "welcome":
@@ -219,6 +285,10 @@ export async function render<T extends EmailTemplate>(template: T, payload: Emai
       return passwordChanged(payload as EmailPayloads["password-changed"]);
     case "payment-receipt":
       return paymentReceipt(payload as EmailPayloads["payment-receipt"]);
+    case "application-update":
+      return applicationUpdate(payload as EmailPayloads["application-update"]);
+    case "interview-scheduled":
+      return interviewScheduled(payload as EmailPayloads["interview-scheduled"]);
     default:
       throw new PermanentEmailError(`Unknown template ${template}`);
   }

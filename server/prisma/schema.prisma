@@ -16,6 +16,7 @@ enum Role {
   ADMIN
   MENTOR
   STUDENT
+  RECRUITER // a hiring company's account: posts jobs, sees applicants and opted-in students
 }
 
 model User {
@@ -26,6 +27,10 @@ model User {
   role         Role     @default(STUDENT)
   phone        String?
   isActive     Boolean  @default(true)
+  // Students: show my profile (readiness, skills, resume) to recruiters in the talent pool.
+  shareProfile Boolean  @default(false)
+  // Recruiters: the company they hire for.
+  company      String?
   // Sign-in tokens carry this number. Changing or resetting the password
   // bumps it, which signs out every existing session at once.
   tokenVersion Int      @default(0)
@@ -52,6 +57,8 @@ model User {
   tasksCreated     Task[]               @relation("TaskCreator")
   taskSubmissions  TaskSubmission[]     @relation("TaskSubmitter")
   taskReviews      TaskSubmission[]     @relation("TaskReviewer")
+  jobsPosted       Job[]                @relation("JobPoster")
+  applications     JobApplication[]
   documents        Document[]
   passwordResets   PasswordResetToken[]
   paymentsCreated  Payment[]            @relation("PaymentCreator")
@@ -183,6 +190,7 @@ model Batch {
   quizzes    Quiz[]
   payments   Payment[]
   tasks      Task[]
+  drives     Job[]        @relation("JobBatches")
 
   @@index([mentorId])
 }
@@ -230,16 +238,23 @@ model Quiz {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  batchId     String
-  batch       Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  // A quiz belongs to a batch, or (a hiring test) to a job. Exactly one of the two is set.
+  batchId     String?
+  batch       Batch?  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  jobId       String?
+  job         Job?    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  // Optional window: can't be started before opensAt or after closesAt (so all applicants sit it together).
+  opensAt     DateTime?
+  closesAt    DateTime?
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
 
   questions    Question[]
   attempts     QuizAttempt[]
   practiceRuns PracticeRun[]
 
   @@index([batchId, isPublished])
+  @@index([jobId])
 }
 
 enum QuizMode {
@@ -390,6 +405,109 @@ model TaskSubmission {
 
   @@unique([taskId, studentId])
   @@index([studentId])
+}
+
+// ─────────────────────────────── Jobs & campus drives ────────────────────────
+
+enum JobType {
+  FULL_TIME
+  INTERNSHIP
+  CONTRACT
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
+// A job a recruiter (or the institute) posts. A campus drive is one aimed at chosen batches.
+model Job {
+  id            String    @id @default(cuid())
+  title         String
+  company       String
+  location      String?
+  type          JobType   @default(FULL_TIME)
+  salary        String? // free text, e.g. "₹6–8 LPA"
+  description   String
+  skills        String[]
+  // Students below this readiness can't apply. Null = anyone eligible can.
+  minReadiness  Int?
+  deadline      DateTime?
+  status        JobStatus @default(OPEN)
+  isCampusDrive Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  postedById String
+  postedBy   User   @relation("JobPoster", fields: [postedById], references: [id])
+
+  // Which batches may apply. Empty = every student.
+  batches      Batch[]          @relation("JobBatches")
+  applications JobApplication[]
+  tests        Quiz[]
+
+  @@index([status, createdAt])
+  @@index([postedById])
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  INTERVIEW
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model JobApplication {
+  id        String            @id @default(cuid())
+  status    ApplicationStatus @default(APPLIED)
+  coverNote String?
+  // Readiness when they applied, so the recruiter sees what the student had then.
+  readinessAtApply Float?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  jobId     String
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  interviews Interview[]
+
+  @@unique([jobId, studentId])
+  @@index([studentId])
+}
+
+enum InterviewMode {
+  ONLINE
+  IN_PERSON
+  PHONE
+}
+
+enum InterviewOutcome {
+  PENDING
+  PASSED
+  FAILED
+  NO_SHOW
+}
+
+model Interview {
+  id              String           @id @default(cuid())
+  scheduledAt     DateTime
+  durationMinutes Int              @default(30)
+  mode            InterviewMode    @default(ONLINE)
+  location        String? // meeting link or address
+  notes           String? // shown to the student (what to prepare)
+  outcome         InterviewOutcome @default(PENDING)
+  feedback        String? // recruiter only
+  createdAt       DateTime         @default(now())
+
+  applicationId String
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, scheduledAt])
 }
 
 // ─────────────────────────────── Files ───────────────────────────────────────

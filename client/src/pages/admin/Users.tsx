@@ -46,6 +46,7 @@ export function UsersPage() {
           { id: "ALL", label: "Everyone" },
           { id: "ADMIN", label: "Admins" },
           { id: "MENTOR", label: "Mentors" },
+          { id: "RECRUITER", label: "Recruiters" },
           { id: "STUDENT", label: "Students" },
         ]}
       />
@@ -74,7 +75,10 @@ export function UsersPage() {
                           <div className="font-medium">{u.name}</div>
                           <div className="text-xs text-muted">{u.email}</div>
                         </Td>
-                        <Td>{titleCase(u.role)}</Td>
+                        <Td>
+                          {titleCase(u.role)}
+                          {u.company && <div className="text-xs text-muted">{u.company}</div>}
+                        </Td>
                         <Td className="text-muted">{fmtDate(u.createdAt)}</Td>
                         <Td>{u.isActive ? <Badge tone="good">Active</Badge> : <Badge tone="bad">Deactivated</Badge>}</Td>
                         <Td className="text-right">
@@ -106,10 +110,10 @@ export function UsersPage() {
 
 function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const empty = { name: "", email: "", phone: "", password: "", role: "MENTOR" as Role };
+  const empty = { name: "", email: "", phone: "", password: "", company: "", role: "MENTOR" as Role };
   const [form, setForm] = useState(empty);
   const create = useMutation({
-    mutationFn: () => api.post("/users", { ...form, phone: form.phone || undefined }),
+    mutationFn: () => api.post("/users", { ...form, phone: form.phone || undefined, company: form.role === "RECRUITER" ? form.company : undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["assignees"] });
@@ -134,8 +138,10 @@ function AddUserModal({ open, onClose }: { open: boolean; onClose: () => void })
             <option value="MENTOR">Mentor</option>
             <option value="ADMIN">Admin</option>
             <option value="STUDENT">Student</option>
+            <option value="RECRUITER">Recruiter (hiring company)</option>
           </Select>
         </Field>
+        {form.role === "RECRUITER" && <TextField label="Company" required minLength={2} value={form.company} onChange={set("company")} error={fe.company} hint="They post jobs for this company and see students who share their profile." />}
         <TextField label="Name" required value={form.name} onChange={set("name")} error={fe.name} />
         <TextField label="Email" type="email" required value={form.email} onChange={set("email")} error={fe.email} />
         <TextField label="Phone (optional)" value={form.phone} onChange={set("phone")} error={fe.phone} />

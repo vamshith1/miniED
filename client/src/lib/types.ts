@@ -1,6 +1,6 @@
 // Shapes returned by the API. Dates arrive as ISO strings.
 
-export type Role = "ADMIN" | "MENTOR" | "STUDENT";
+export type Role = "ADMIN" | "MENTOR" | "STUDENT" | "RECRUITER";
 export type LeadStage = "NEW" | "CONTACTED" | "INTERESTED" | "ENROLLED" | "LOST";
 export type AttendanceStatus = "PRESENT" | "LATE" | "ABSENT";
 export type EmailStatus = "QUEUED" | "SENT" | "FAILED";
@@ -15,6 +15,8 @@ export interface User {
   phone: string | null;
   batchId: string | null;
   isActive: boolean;
+  shareProfile: boolean; // students: visible to recruiters in the talent pool
+  company: string | null; // recruiters
   createdAt: string;
 }
 
@@ -144,7 +146,11 @@ export interface QuizSummary extends QuizRules {
   durationSeconds: number;
   isPublished: boolean;
   createdAt: string;
-  batch: { id: string; name: string };
+  opensAt: string | null;
+  closesAt: string | null;
+  // A batch quiz, or a job's hiring test.
+  batch: { id: string; name: string } | null;
+  job?: { id: string; title: string; company?: string } | null;
   _count: { questions: number; attempts: number };
 }
 
@@ -179,7 +185,7 @@ export interface StartedAttempt {
   attemptId: string;
   startedAt: string;
   expiresAt: string;
-  quiz: { id: string; title: string; description: string | null; durationSeconds: number } & QuizRules;
+  quiz: { id: string; title: string; description: string | null; durationSeconds: number; isHiringTest?: boolean } & QuizRules;
   questions: Question[];
 }
 
@@ -201,6 +207,7 @@ export interface PracticeSession {
 }
 
 export interface QuizResult {
+  isHiringTest?: boolean;
   status: "SUBMITTED" | "EXPIRED";
   score: number;
   maxScore: number;
@@ -534,4 +541,101 @@ export interface BatchPlacement {
 
 export interface PlacementOverview {
   items: { id: string; name: string; course: string; students: number; averageReadiness: number | null; ready: number; almost: number; needsWork: number }[];
+}
+
+// ---------- Jobs & campus drives (/api/jobs)
+
+export type JobType = "FULL_TIME" | "INTERNSHIP" | "CONTRACT";
+export type JobStatus = "OPEN" | "CLOSED";
+export type ApplicationStatus = "APPLIED" | "SHORTLISTED" | "INTERVIEW" | "OFFERED" | "HIRED" | "REJECTED" | "WITHDRAWN";
+export type InterviewMode = "ONLINE" | "IN_PERSON" | "PHONE";
+export type InterviewOutcome = "PENDING" | "PASSED" | "FAILED" | "NO_SHOW";
+
+export interface JobBase {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  type: JobType;
+  salary: string | null;
+  description: string;
+  skills: string[];
+  minReadiness: number | null;
+  deadline: string | null;
+  status: JobStatus;
+  isCampusDrive: boolean;
+  createdAt: string;
+  batches: { id: string; name: string }[];
+}
+
+export interface JobTest {
+  id: string;
+  title: string;
+  isPublished?: boolean;
+  durationSeconds: number;
+  opensAt: string | null;
+  closesAt: string | null;
+}
+
+/** A job as its recruiter (or an admin) sees it. */
+export interface ManagedJob extends JobBase {
+  postedBy: { id: string; name: string; company: string | null };
+  tests: JobTest[];
+  applicants?: number;
+  byStatus?: Record<ApplicationStatus, number>;
+}
+
+export interface Interview {
+  id: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  mode: InterviewMode;
+  location: string | null;
+  notes: string | null;
+  outcome: InterviewOutcome;
+  feedback?: string | null; // recruiters only
+}
+
+/** A job as a student sees it in the list. */
+export interface StudentJob extends JobBase {
+  myApplication: { id: string; status: ApplicationStatus; createdAt: string } | null;
+  canApply: boolean;
+  cannotApplyReason: string | null;
+}
+
+export interface StudentJobDetail extends JobBase {
+  tests: JobTest[];
+  myApplication: { id: string; status: ApplicationStatus; coverNote: string | null; createdAt: string; interviews: Interview[] } | null;
+}
+
+export interface MyApplication {
+  id: string;
+  status: ApplicationStatus;
+  coverNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  job: { id: string; title: string; company: string; location: string | null; type: JobType; status: JobStatus };
+  interviews: Interview[];
+}
+
+export interface Applicant {
+  id: string;
+  status: ApplicationStatus;
+  coverNote: string | null;
+  appliedAt: string;
+  updatedAt: string;
+  readinessAtApply: number | null;
+  student: { id: string; name: string; email: string; phone: string | null; batch: { name: string; course: string } | null };
+  readiness: number | null;
+  band: ReadinessBand | null;
+  strengths: string[];
+  gaps: string[];
+  resume: { id: string; originalName: string } | null;
+  tests: { quizId: string; status: "IN_PROGRESS" | "SUBMITTED" | "EXPIRED"; score: number; maxScore: number; timeTakenMs: number | null }[];
+  interviews: Interview[];
+}
+
+export interface TalentRow extends Readiness {
+  student: { id: string; name: string; email: string; batch: { name: string; course: string } | null };
+  resume: { id: string; originalName: string } | null;
 }

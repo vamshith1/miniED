@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../lib/http-error.js";
 import type { AuthUser } from "../../middleware/auth.js";
 import { assertCanManageBatch } from "../batches/batches.service.js";
+import { assertCanManageJob, assertCanTakeJobTest } from "../jobs/jobs.service.js";
 import type { QuizContent } from "./quizzes.schemas.js";
 
 // Full quiz for mentors/admins, correct answers included.
@@ -12,9 +13,14 @@ const fullInclude = {
     include: { options: { orderBy: { position: "asc" } } },
   },
   batch: { select: { id: true, name: true } },
+  job: { select: { id: true, title: true, company: true } },
   createdBy: { select: { id: true, name: true } },
   _count: { select: { attempts: true } },
 } satisfies Prisma.QuizInclude;
+
+// Who manages a quiz: its batch's mentor and admins, or for a hiring test, the job's recruiter and admins.
+const assertCanManageOwner = (owner: { batchId: string | null; jobId: string | null }, user: AuthUser) =>
+  owner.jobId ? assertCanManageJob(owner.jobId, user) : assertCanManageBatch(owner.batchId!, user);
 
 // Turns the request's question list into nested Prisma creates, saving
 // the order questions and options were written in.
@@ -35,19 +41,21 @@ const questionCreates = (questions: QuizContent["questions"]) =>
 export async function getManagedQuiz(quizId: string, user: AuthUser) {
   const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, include: fullInclude });
   if (!quiz || user.role === "STUDENT") throw new HttpError(404, "Quiz not found");
-  await assertCanManageBatch(quiz.batchId, user);
+  await assertCanManageOwner(quiz, user);
   return quiz;
 }
 
-// A published quiz in the student's own batch, otherwise 404.
+// A published quiz in the student's own batch, or a hiring test for a job they applied to. Otherwise 404.
 export async function getStudentQuiz(quizId: string, user: AuthUser) {
   const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
-  if (!quiz || !quiz.isPublished || quiz.batchId !== user.batchId) throw new HttpError(404, "Quiz not found");
+  if (!quiz || !quiz.isPublished || user.role !== "STUDENT") throw new HttpError(404, "Quiz not found");
+  if (quiz.jobId) await assertCanTakeJobTest(quiz.jobId, user);
+  else if (quiz.batchId !== user.batchId) throw new HttpError(404, "Quiz not found");
   return quiz;
 }
 
-export async function createQuiz(input: QuizContent & { batchId: string }, user: AuthUser) {
-  await assertCanManageBatch(input.batchId, user);
+export async function createQuiz(input: QuizContent & { batchId?: string; jobId?: string }, user: AuthUser) {
+  await assertCanManageOwner({ batchId: input.batchId ?? null, jobId: input.jobId ?? null }, user);
   const { questions, ...rest } = input;
   return prisma.quiz.create({
     data: { ...rest, createdById: user.id, questions: { create: questionCreates(questions) } },
@@ -87,7 +95,7 @@ export async function deleteQuiz(quizId: string, user: AuthUser) {
  * Mentors/admins: quizzes in the batches they manage (optionally one batch).
  * Students: published quizzes in their batch, with their own attempt status.
  */
-export async function listQuizzes(user: AuthUser, batchId?: string) {
+export async function listQuizzes(user: AuthUser, batchId?: string, jobId?: string) {
   if (user.role === "STUDENT") {
     const quizzes = await prisma.quiz.findMany({
       where: { batchId: user.batchId ?? "__none__", isPublished: true },
@@ -119,14 +127,17 @@ export async function listQuizzes(user: AuthUser, batchId?: string) {
   }
 
   if (batchId) await assertCanManageBatch(batchId, user);
+  if (jobId) await assertCanManageJob(jobId, user);
   const where: Prisma.QuizWhereInput = {
     ...(batchId && { batchId }),
+    ...(jobId && { jobId }),
     ...(user.role === "MENTOR" && { batch: { mentorId: user.id } }),
+    ...(user.role === "RECRUITER" && { job: { postedById: user.id } }),
   };
   return prisma.quiz.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    include: { batch: { select: { id: true, name: true } }, _count: { select: { questions: true, attempts: true } } },
+    include: { batch: { select: { id: true, name: true } }, job: { select: { id: true, title: true } }, _count: { select: { questions: true, attempts: true } } },
   });
 }
 

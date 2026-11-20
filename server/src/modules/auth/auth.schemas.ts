@@ -18,9 +18,10 @@ export const loginSchema = z.object({
 
 // Admin-only: create a user with any role.
 export const createUserSchema = signupSchema.extend({
-  role: z.enum(["ADMIN", "MENTOR", "STUDENT"]),
+  role: z.enum(["ADMIN", "MENTOR", "STUDENT", "RECRUITER"]),
   phone: z.string().trim().max(20).optional(),
-});
+  company: z.string().trim().min(2).max(120).optional(), // recruiters
+}).refine((u) => u.role !== "RECRUITER" || !!u.company, { message: "Add the recruiter's company", path: ["company"] });
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),

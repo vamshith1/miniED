@@ -20,6 +20,7 @@ import { paymentsRouter, paymentsWebhookRouter } from "./modules/payments/paymen
 import { progressRouter } from "./modules/progress/progress.routes.js";
 import { tasksRouter } from "./modules/tasks/tasks.routes.js";
 import { placementRouter } from "./modules/placement/placement.routes.js";
+import { jobsRouter } from "./modules/jobs/jobs.routes.js";
 
 // Helmet's default Content Security Policy, plus Razorpay's checkout when it's in use
 // (its script, its payment iframe and the calls it makes).
@@ -65,6 +66,7 @@ export function createApp() {
   app.use("/api/progress", progressRouter);
   app.use("/api/tasks", tasksRouter);
   app.use("/api/placement", placementRouter);
+  app.use("/api/jobs", jobsRouter);
 
   serveWebApp(app); // the React app, when it has been built (production)
 

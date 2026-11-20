@@ -25,6 +25,7 @@ export function rank<T>(rows: T[], same: (a: T, b: T) => boolean): Ranked<T>[] {
 // Higher score first; faster time breaks ties.
 export async function getQuizLeaderboard(quizId: string, user: AuthUser) {
   const quiz = user.role === "STUDENT" ? await getStudentQuiz(quizId, user) : await getManagedQuiz(quizId, user);
+  if (quiz.jobId && user.role === "STUDENT") throw new HttpError(404, "Hiring tests have no public leaderboard");
 
   return getOrSet(cacheKeys.quizLeaderboard(quizId), TTL_SECONDS, async () => {
     const attempts = await prisma.quizAttempt.findMany({

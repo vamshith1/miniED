@@ -14,6 +14,8 @@ export const publicUserSelect = {
   phone: true,
   batchId: true,
   isActive: true,
+  shareProfile: true,
+  company: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
@@ -25,6 +27,7 @@ export async function createUser(input: CreateUserInput) {
         email: input.email,
         phone: input.phone,
         role: input.role,
+        company: input.role === "RECRUITER" ? input.company : null,
         passwordHash: await hashPassword(input.password),
       },
       select: publicUserSelect,

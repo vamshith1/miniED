@@ -44,7 +44,7 @@ export async function readinessFor(students: StudentRef[]) {
   const [quiz, attendance, dueTasks, accepted, skills] = await Promise.all([
     prisma.quizAttempt.groupBy({
       by: ["studentId"],
-      where: { studentId: { in: ids }, status: { in: ["SUBMITTED", "EXPIRED"] } },
+      where: { studentId: { in: ids }, status: { in: ["SUBMITTED", "EXPIRED"] }, quiz: { jobId: null } },
       _sum: { score: true, maxScore: true },
       _count: { _all: true },
     }),

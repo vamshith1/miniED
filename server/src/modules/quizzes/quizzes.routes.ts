@@ -10,7 +10,8 @@ import { getQuizLeaderboard } from "./leaderboard.js";
 export const quizzesRouter = Router();
 quizzesRouter.use(requireAuth);
 
-const manager = requireRole("ADMIN", "MENTOR");
+// Recruiters build hiring tests for their own jobs; the access checks are in the service.
+const manager = requireRole("ADMIN", "MENTOR", "RECRUITER");
 const student = requireRole("STUDENT");
 
 // X-Cache: HIT / MISS shows whether a response came from the cache.
@@ -22,8 +23,8 @@ export function sendCached(res: Response, { value, hit }: { value: unknown; hit:
 // ---- Builder (admin, or the batch's mentor) ----
 
 quizzesRouter.get("/", async (req, res) => {
-  const { batchId } = listQuizzesQuery.parse(req.query);
-  res.json({ items: await quizzes.listQuizzes(req.user!, batchId) });
+  const { batchId, jobId } = listQuizzesQuery.parse(req.query);
+  res.json({ items: await quizzes.listQuizzes(req.user!, batchId, jobId) });
 });
 
 quizzesRouter.post("/", manager, async (req, res) => {

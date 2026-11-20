@@ -31,6 +31,7 @@ const questionsForStudent = (quizId: string) =>
 
 const quizInfo = (q: Quiz) => ({
   id: q.id,
+  isHiringTest: !!q.jobId,
   title: q.title,
   description: q.description,
   durationSeconds: q.durationSeconds,
@@ -99,6 +100,11 @@ export async function startAttempt(quizId: string, user: AuthUser) {
   if (attempt && attempt.status !== "IN_PROGRESS") {
     throw new HttpError(409, "You have already attempted this quiz", { status: attempt.status });
   }
+  // The window only stops new starts: someone already inside can finish.
+  if (!attempt && quiz.opensAt && quiz.opensAt > new Date()) {
+    throw new HttpError(409, `This test opens at ${quiz.opensAt.toISOString()}`, { opensAt: quiz.opensAt.toISOString() });
+  }
+  if (!attempt && quiz.closesAt && quiz.closesAt < new Date()) throw new HttpError(409, "This test has closed");
   if (attempt && isPastGrace(attempt.startedAt, quiz.durationSeconds)) {
     await expire(attempt.id);
     throw new HttpError(409, "Time is up: this attempt has expired", { status: "EXPIRED" });
@@ -155,7 +161,7 @@ export async function submitAttempt(quizId: string, input: SubmitInput, user: Au
   });
 
   // New score, so cached rankings and stats are now stale.
-  await invalidate(cacheKeys.quizLeaderboard(quizId), cacheKeys.batchLeaderboard(quiz.batchId), cacheKeys.dashboardStats());
+  await invalidate(cacheKeys.quizLeaderboard(quizId), ...(quiz.batchId ? [cacheKeys.batchLeaderboard(quiz.batchId)] : []), cacheKeys.dashboardStats());
   await enqueueEmail("quiz-result", user.email, { attemptId: attempt.id });
 
   return getMyResult(quizId, user);
@@ -175,6 +181,7 @@ export async function getMyResult(quizId: string, user: AuthUser) {
   const answered = attempt.answers.filter((a) => a.optionId);
   const correct = answered.filter((a) => a.isCorrect).length;
   return {
+    isHiringTest: !!quiz.jobId,
     status: attempt.status,
     score: attempt.score,
     maxScore: attempt.maxScore,

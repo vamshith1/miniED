@@ -25,7 +25,7 @@ export async function quizHistory(user: AuthUser) {
       timeTakenMs: true,
       startedAt: true,
       submittedAt: true,
-      quiz: { select: { id: true, title: true, durationSeconds: true, passPercent: true, batch: { select: { name: true } } } },
+      quiz: { select: { id: true, title: true, durationSeconds: true, passPercent: true, batch: { select: { name: true } }, job: { select: { company: true } } } },
     },
   });
 
@@ -47,7 +47,8 @@ export async function quizHistory(user: AuthUser) {
       attemptId: a.id,
       quizId: a.quiz.id,
       title: a.quiz.title,
-      batchName: a.quiz.batch.name,
+      batchName: a.quiz.batch?.name ?? `Hiring test · ${a.quiz.job?.company ?? "job"}`,
+      isHiringTest: !a.quiz.batch,
       status: a.status,
       takenAt: (a.submittedAt ?? a.startedAt).toISOString(),
       score: a.score,

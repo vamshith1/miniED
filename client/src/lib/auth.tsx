@@ -109,4 +109,5 @@ export function useUser() {
   return user;
 }
 
-export const homePathFor = (role: User["role"]) => (role === "ADMIN" ? "/dashboard" : role === "MENTOR" ? "/batches" : "/home");
+export const homePathFor = (role: User["role"]) =>
+  role === "ADMIN" ? "/dashboard" : role === "MENTOR" ? "/batches" : role === "RECRUITER" ? "/jobs" : "/home";

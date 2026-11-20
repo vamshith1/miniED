@@ -25,6 +25,10 @@ import { TimeSpentPage } from "./pages/student/TimeSpent";
 import { PracticeQuizPage } from "./pages/student/PracticeQuiz";
 import { MyTasksPage } from "./pages/student/MyTasks";
 import { PlacementPage } from "./pages/Placement";
+import { JobsPage } from "./pages/jobs/Jobs";
+import { JobDetailPage } from "./pages/jobs/JobDetail";
+import { TalentPage } from "./pages/jobs/Talent";
+import { CareersPage } from "./pages/student/Careers";
 
 // Signed-in pages. Wrong role → your own home page; signed out → login,
 // coming back here afterwards (e.g. from a link in an email).
@@ -49,6 +53,9 @@ const DashboardPage = lazy(() => import("./pages/admin/Dashboard").then((m) => (
 const admin: Role[] = ["ADMIN"];
 const managers: Role[] = ["ADMIN", "MENTOR"];
 const student: Role[] = ["STUDENT"];
+const hiring: Role[] = ["ADMIN", "RECRUITER"];
+// Quiz builder: mentors for batch quizzes, recruiters for their jobs' hiring tests.
+const builders: Role[] = ["ADMIN", "MENTOR", "RECRUITER"];
 
 export function App() {
   return (
@@ -74,8 +81,12 @@ export function App() {
         <Route path="batches" element={<RequireRole roles={managers}><BatchesPage /></RequireRole>} />
         <Route path="placement" element={<RequireRole roles={managers}><PlacementPage /></RequireRole>} />
         <Route path="batches/:id" element={<RequireRole roles={managers}><BatchDetailPage /></RequireRole>} />
-        <Route path="quizzes/new" element={<RequireRole roles={managers}><QuizEditorPage /></RequireRole>} />
-        <Route path="quizzes/:id" element={<RequireRole roles={managers}><QuizEditorPage /></RequireRole>} />
+        <Route path="quizzes/new" element={<RequireRole roles={builders}><QuizEditorPage /></RequireRole>} />
+        <Route path="quizzes/:id" element={<RequireRole roles={builders}><QuizEditorPage /></RequireRole>} />
+        <Route path="jobs" element={<RequireRole roles={hiring}><JobsPage /></RequireRole>} />
+        <Route path="jobs/:id" element={<RequireRole roles={hiring}><JobDetailPage /></RequireRole>} />
+        <Route path="talent" element={<RequireRole roles={hiring}><TalentPage /></RequireRole>} />
+        <Route path="careers" element={<RequireRole roles={student}><CareersPage /></RequireRole>} />
         <Route path="home" element={<RequireRole roles={student}><StudentHomePage /></RequireRole>} />
         <Route path="quizzes/:id/take" element={<RequireRole roles={student}><TakeQuizPage /></RequireRole>} />
         <Route path="quizzes/:id/practice" element={<RequireRole roles={student}><PracticeQuizPage /></RequireRole>} />

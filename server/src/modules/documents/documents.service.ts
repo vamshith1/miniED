@@ -7,6 +7,7 @@ import { env } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../lib/http-error.js";
 import type { AuthUser } from "../../middleware/auth.js";
+import { recruiterCanSeeStudent } from "../jobs/jobs.service.js";
 
 export const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_OTHER_PER_USER = 10;
@@ -73,6 +74,7 @@ async function assertCanView(ownerId: string, user: AuthUser) {
     const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { batch: { select: { mentorId: true } } } });
     if (owner?.batch?.mentorId === user.id) return;
   }
+  if (await recruiterCanSeeStudent(ownerId, user)) return;
   throw new HttpError(404, "Document not found");
 }
 

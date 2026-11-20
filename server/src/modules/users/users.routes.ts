@@ -21,7 +21,7 @@ usersRouter.post("/", async (req, res) => {
 
 // GET /api/users?role=MENTOR&page=1&limit=20
 const listQuery = z.object({
-  role: z.enum(["ADMIN", "MENTOR", "STUDENT"]).optional(),
+  role: z.enum(["ADMIN", "MENTOR", "STUDENT", "RECRUITER"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

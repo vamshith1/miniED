@@ -14,7 +14,31 @@ import { QuizLeaderboardTable } from "../components/Leaderboards";
 interface DraftOption { text: string; isCorrect: boolean }
 interface DraftQuestion { text: string; points: number; skill?: string; explanation?: string; options: DraftOption[] }
 // mode/negativePercent/passPercent are optional so copies saved on this device before they existed still load.
-interface Draft { title: string; description: string; minutes: number; mode?: QuizMode; negativePercent?: number; passPercent?: number | null; questions: DraftQuestion[] }
+interface Draft {
+  title: string;
+  description: string;
+  minutes: number;
+  mode?: QuizMode;
+  negativePercent?: number;
+  passPercent?: number | null;
+  opensAt?: string; // datetime-local text, "" = no limit
+  closesAt?: string;
+  questions: DraftQuestion[];
+}
+
+// "2026-11-20T18:30" for a datetime-local input, in the viewer's own time zone.
+const toLocalInput = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
+const fromLocalInput = (v: string | undefined) => (v ? new Date(v).toISOString() : null);
+
+/** Where a quiz lives: a batch, or (a hiring test) a job. */
+type Owner = { kind: "batch" | "job"; id: string; name: string };
+const ownerOf = (q: FullQuiz): Owner =>
+  q.job ? { kind: "job", id: q.job.id, name: `${q.job.title}${q.job.company ? ` · ${q.job.company}` : ""}` } : { kind: "batch", id: q.batch!.id, name: q.batch!.name };
+const backPathOf = (o: { kind: "batch" | "job"; id: string }) => (o.kind === "batch" ? `/batches/${o.id}?tab=quizzes` : `/jobs/${o.id}`);
 
 const blankQuestion = (): DraftQuestion => ({ text: "", points: 1, skill: "", explanation: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
 
@@ -27,6 +51,8 @@ const toDraft = (q: FullQuiz): Draft => ({
   mode: q.mode,
   negativePercent: q.negativePercent,
   passPercent: q.passPercent,
+  opensAt: toLocalInput(q.opensAt),
+  closesAt: toLocalInput(q.closesAt),
   questions: q.questions.map((x) => ({
     text: x.text,
     points: x.points,
@@ -43,6 +69,8 @@ const toBody = (d: Draft) => ({
   mode: d.mode ?? "TEST",
   negativePercent: d.negativePercent ?? 0,
   passPercent: d.passPercent ?? null,
+  opensAt: fromLocalInput(d.opensAt),
+  closesAt: fromLocalInput(d.closesAt),
   questions: d.questions.map((q) => ({
     text: q.text.trim(),
     points: q.points,
@@ -58,6 +86,7 @@ function problems(d: Draft) {
   if (d.title.trim().length < 2) out.push("Give the quiz a title.");
   if (!(d.minutes >= 0.5 && d.minutes <= 180)) out.push("The time limit must be between 30 seconds and 3 hours.");
   if (d.passPercent != null && !(d.passPercent >= 1 && d.passPercent <= 100)) out.push("The pass mark must be between 1% and 100%.");
+  if (d.opensAt && d.closesAt && d.closesAt <= d.opensAt) out.push("It must close after it opens.");
   d.questions.forEach((q, i) => {
     if (!q.text.trim()) out.push(`Question ${i + 1} has no text.`);
     if (q.options.some((o) => !o.text.trim())) out.push(`Question ${i + 1} has an empty option.`);
@@ -73,7 +102,7 @@ export function QuizEditorPage() {
 // Wait this long after the last edit before autosaving.
 const AUTOSAVE_MS = 1500;
 
-const blankDraft = (): Draft => ({ title: "", description: "", minutes: 10, mode: "TEST", negativePercent: 0, passPercent: null, questions: [blankQuestion()] });
+const blankDraft = (): Draft => ({ title: "", description: "", minutes: 10, mode: "TEST", negativePercent: 0, passPercent: null, opensAt: "", closesAt: "", questions: [blankQuestion()] });
 const BLANK_JSON = JSON.stringify(blankDraft());
 
 /** Offers back unsaved work found on this device (after a reload, crash or closed tab). */
@@ -101,10 +130,14 @@ function RestoreBanner({ backup, onRestore, onDiscard }: { backup: Backup<Draft>
 function NewQuiz() {
   const [params] = useSearchParams();
   const batchId = params.get("batchId") ?? "";
+  const jobId = params.get("jobId") ?? "";
+  const owner = { kind: jobId ? ("job" as const) : ("batch" as const), id: jobId || batchId };
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const backupKey = `new-quiz:${batchId}`;
+  const backupKey = `new-quiz:${owner.id}`;
   const batch = useQuery({ queryKey: ["batch", batchId], queryFn: () => api.get<{ batch: Batch }>(`/batches/${batchId}`).then((r) => r.batch), enabled: !!batchId });
+  const job = useQuery({ queryKey: ["job", jobId], queryFn: () => api.get<{ job: { title: string; company: string } }>(`/jobs/${jobId}`).then((r) => r.job), enabled: !!jobId });
+  const forName = batch.data?.name ?? (job.data ? `${job.data.title} · ${job.data.company} (hiring test, only applicants can take it)` : undefined);
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [restorable, setRestorable] = useState(() => {
     const b = readBackup<Draft>(backupKey);
@@ -113,29 +146,30 @@ function NewQuiz() {
   const draftJson = JSON.stringify(draft);
   const started = draftJson !== BLANK_JSON;
   const create = useMutation({
-    mutationFn: () => api.post<{ quiz: FullQuiz }>("/quizzes", { batchId, ...toBody(draft) }),
+    mutationFn: () => api.post<{ quiz: FullQuiz }>("/quizzes", { ...(jobId ? { jobId } : { batchId }), ...toBody(draft) }),
     onSuccess: ({ quiz }) => {
       clearBackup(backupKey);
-      qc.invalidateQueries({ queryKey: ["quizzes", batchId] });
+      qc.invalidateQueries({ queryKey: ["quizzes", owner.id] });
+      qc.invalidateQueries({ queryKey: ["job", jobId] });
       navigate(`/quizzes/${quiz.id}`, { replace: true });
     },
   });
 
   // Keep a copy on this device while it's being written (left alone until a found copy is restored or discarded).
   useEffect(() => {
-    if (restorable || !batchId || create.isSuccess) return;
+    if (restorable || !owner.id || create.isSuccess) return;
     if (started) writeBackup(backupKey, draft);
     else clearBackup(backupKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftJson, restorable, backupKey]);
   useLeaveWarning(started && !create.isSuccess);
 
-  if (!batchId) return <EmptyState title="Open a batch first">Quizzes are created from a batch's Quizzes tab.</EmptyState>;
+  if (!owner.id) return <EmptyState title="Open a batch first">Quizzes are created from a batch's Quizzes tab (or a job's page, for a hiring test).</EmptyState>;
   const issues = problems(draft);
   return (
     <>
-      <BackToBatch batchId={batchId} />
-      <PageHeader title="New quiz" subtitle={batch.data ? `For ${batch.data.name}. It stays a draft, hidden from students, until you publish it.` : undefined} />
+      <BackTo owner={owner} />
+      <PageHeader title={jobId ? "New hiring test" : "New quiz"} subtitle={forName ? `For ${forName}. It stays a draft, hidden from students, until you publish it.` : undefined} />
       {restorable && (
         <RestoreBanner
           backup={restorable}
@@ -162,9 +196,9 @@ function NewQuiz() {
 }
 
 // `warn`: ask before leaving, because some changes can't be saved yet.
-function BackToBatch({ batchId, warn }: { batchId: string; warn?: string }) {
+function BackTo({ owner, warn }: { owner: { kind: "batch" | "job"; id: string }; warn?: string }) {
   const navigate = useNavigate();
-  const to = `/batches/${batchId}?tab=quizzes`;
+  const to = backPathOf(owner);
   return (
     <Link
       to={to}
@@ -175,7 +209,7 @@ function BackToBatch({ batchId, warn }: { batchId: string; warn?: string }) {
       }}
       className="mb-3 inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-brand-strong"
     >
-      <ArrowLeft className="size-4" /> Batch quizzes
+      <ArrowLeft className="size-4" /> {owner.kind === "batch" ? "Batch quizzes" : "Back to the job"}
     </Link>
   );
 }
@@ -188,7 +222,7 @@ function ExistingQuiz({ id }: { id: string }) {
         <>
           {q.isPublished ? (
             <>
-              <BackToBatch batchId={q.batch.id} />
+              <BackTo owner={ownerOf(q)} />
               <PublishedQuiz quiz={q} />
             </>
           ) : (
@@ -204,6 +238,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const backupKey = `quiz:${quiz.id}`;
+  const owner = ownerOf(quiz);
   const [draft, setDraft] = useState(() => toDraft(quiz));
   const [savedJson, setSavedJson] = useState(() => JSON.stringify(toDraft(quiz)));
   // A copy found on this device that differs from the server (say, after a reload mid-edit).
@@ -216,7 +251,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
   const issues = problems(draft);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["quiz", quiz.id] });
-    qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
+    qc.invalidateQueries({ queryKey: ["quizzes", owner.id] });
   };
 
   // Saves a snapshot and remembers exactly what was saved, so edits made while
@@ -230,7 +265,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
     mutationFn: putDraft,
     onSuccess: (json) => {
       setSavedJson(json);
-      qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
+      qc.invalidateQueries({ queryKey: ["quizzes", owner.id] });
     },
   });
   const publish = useMutation({
@@ -247,8 +282,8 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
     mutationFn: () => api.del(`/quizzes/${quiz.id}`),
     onSuccess: () => {
       clearBackup(backupKey);
-      qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
-      navigate(`/batches/${quiz.batch.id}?tab=quizzes`);
+      qc.invalidateQueries({ queryKey: ["quizzes", owner.id] });
+      navigate(backPathOf(owner));
     },
   });
 
@@ -283,7 +318,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
         putDraft(l.draft)
           .then(() => {
             clearBackup(backupKey);
-            qc.invalidateQueries({ queryKey: ["quizzes", quiz.batch.id] });
+            qc.invalidateQueries({ queryKey: ["quizzes", owner.id] });
           })
           .catch(() => {}); // the copy on this device is still there
       }
@@ -294,8 +329,8 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
 
   return (
     <>
-      <BackToBatch
-        batchId={quiz.batch.id}
+      <BackTo
+        owner={owner}
         warn={
           dirty && issues.length > 0
             ? `Your latest changes can't be saved yet (${issues[0].replace(/\.$/, "")}). They stay on this device and are offered back when you return. Leave anyway?`
@@ -308,7 +343,7 @@ function DraftQuiz({ quiz }: { quiz: FullQuiz }) {
             {draft.title || "Untitled quiz"} <Badge>Draft</Badge>
           </span>
         }
-        subtitle={`${quiz.batch.name} · only you and admins can see drafts.`}
+        subtitle={`${owner.name} · only you and admins can see drafts.`}
         actions={
           <>
             <Button variant="danger" loading={remove.isPending} onClick={async () => (await askConfirm("Delete this draft?", { confirmLabel: "Delete", danger: true })) && remove.mutate()}>
@@ -411,6 +446,22 @@ function DraftForm({ draft, onChange }: { draft: Draft; onChange: (d: Draft) => 
             max={100}
             value={draft.passPercent ?? ""}
             onChange={(e) => onChange({ ...draft, passPercent: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <TextField
+            label="Opens (optional)"
+            hint="No one can start it before this"
+            type="datetime-local"
+            value={draft.opensAt ?? ""}
+            onChange={(e) => onChange({ ...draft, opensAt: e.target.value })}
+          />
+          <TextField
+            label="Closes (optional)"
+            hint="No one can start it after this"
+            type="datetime-local"
+            value={draft.closesAt ?? ""}
+            onChange={(e) => onChange({ ...draft, closesAt: e.target.value })}
           />
         </div>
         <RulesNote rules={{ mode: draft.mode ?? "TEST", negativePercent: draft.negativePercent ?? 0, passPercent: draft.passPercent ?? null }} className="mt-2 text-xs" />
@@ -531,7 +582,7 @@ function PublishedQuiz({ quiz }: { quiz: FullQuiz }) {
         }
         subtitle={
           <>
-            {quiz.batch.name} · {quiz.mode === "PRACTICE" ? "practice" : fmtSeconds(quiz.durationSeconds)} · {quiz.questions.length} questions · by {quiz.createdBy.name}
+            {ownerOf(quiz).name} · {quiz.mode === "PRACTICE" ? "practice" : fmtSeconds(quiz.durationSeconds)} · {quiz.questions.length} questions · by {quiz.createdBy.name}
             <RulesNote rules={quiz} className="mt-1 text-xs" />
           </>
         }
