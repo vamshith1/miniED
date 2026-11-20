@@ -114,7 +114,8 @@ export function Layout() {
   return (
     <div className="min-h-screen md:flex">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 flex-col justify-between border-r border-line bg-surface px-3 py-4 md:sticky md:top-0 md:flex md:h-screen">
+      {/* overflow-y-auto + gap: on a short screen the menu scrolls, so Sign out at the bottom is never cut off */}
+      <aside className="hidden w-60 shrink-0 flex-col justify-between gap-5 overflow-y-auto border-r border-line bg-surface px-3 py-4 md:sticky md:top-0 md:flex md:h-screen">
         <div className="space-y-5">
           {brand}
           {nav}
@@ -144,7 +145,7 @@ export function Layout() {
       {open && (
         <div className="fixed inset-0 z-30 md:hidden">
           <div className="animate-fade-in absolute inset-0 bg-black/55" onClick={() => setOpen(false)} />
-          <div className="animate-slide-in-left absolute inset-y-0 left-0 flex w-64 flex-col justify-between bg-surface px-3 py-4 shadow-xl">
+          <div className="animate-slide-in-left absolute inset-y-0 left-0 flex w-64 flex-col justify-between gap-5 overflow-y-auto bg-surface px-3 py-4 shadow-xl">
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 {brand}
