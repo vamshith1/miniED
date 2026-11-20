@@ -14,7 +14,7 @@ const FEATURES = [
   { icon: <Briefcase className="size-4" />, title: "Jobs and campus drives", text: "Recruiters, hiring tests and interviews" },
 ];
 
-// Soft purple light behind the panel and the form. Purely decorative.
+// Soft blue light behind the panel and the form. Purely decorative.
 function Glow({ className }: { className: string }) {
   return <div aria-hidden className={`pointer-events-none absolute rounded-full blur-3xl motion-safe:animate-glow ${className}`} />;
 }
@@ -30,13 +30,13 @@ function Logo({ light }: { light?: boolean }) {
   );
 }
 
-/** The purple brand panel on the left of the sign-in pages (wide screens only). */
+/** The navy brand panel on the left of the sign-in pages (wide screens only). */
 function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-[#1e0b3d] md:flex md:flex-col md:justify-between md:p-8 lg:p-12">
+    <aside className="relative hidden overflow-hidden bg-[#0b0e19] md:flex md:flex-col md:justify-between md:p-8 lg:p-12">
       <Glow className="-left-24 -top-24 size-96 bg-brand/50" />
-      <Glow className="-bottom-32 right-[-6rem] size-[28rem] bg-fuchsia-500/30 [animation-delay:-7s]" />
-      <Glow className="left-1/3 top-1/2 size-72 bg-indigo-500/25 [animation-delay:-3s]" />
+      <Glow className="-bottom-32 right-[-6rem] size-[28rem] bg-sky-500/25 [animation-delay:-7s]" />
+      <Glow className="left-1/3 top-1/2 size-72 bg-blue-400/20 [animation-delay:-3s]" />
       {/* A faint grid, fading out towards the bottom */}
       <div
         aria-hidden
@@ -50,39 +50,39 @@ function BrandPanel() {
       <div className="relative max-w-md">
         <h2 className="text-3xl font-semibold lg:text-4xl leading-tight tracking-tight text-white">
           From first enquiry to{" "}
-          <span className="bg-linear-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">first job offer.</span>
+          <span className="bg-linear-to-r from-[#7c9bff] to-sky-300 bg-clip-text text-transparent">first job offer.</span>
         </h2>
-        <p className="mt-4 text-base text-violet-200/80">Leads, batches, quizzes and placements for your institute, in one place.</p>
+        <p className="mt-4 text-base text-slate-300">Leads, batches, quizzes and placements for your institute, in one place.</p>
 
         <ul className="mt-8 grid gap-3 lg:grid-cols-2">
           {FEATURES.map((f) => (
-            <li key={f.title} className="rounded-xl border border-white/10 bg-white/[0.06] p-3.5 backdrop-blur-sm transition-colors hover:border-violet-300/40 hover:bg-white/10">
-              <span className="mb-2 grid size-8 place-items-center rounded-lg bg-violet-400/20 text-violet-200">{f.icon}</span>
+            <li key={f.title} className="rounded-xl border border-white/10 bg-white/[0.06] p-3.5 backdrop-blur-sm transition-colors hover:border-[#7c9bff]/40 hover:bg-white/10">
+              <span className="mb-2 grid size-8 place-items-center rounded-lg bg-brand/25 text-[#a9bcff]">{f.icon}</span>
               <p className="text-sm font-medium text-white">{f.title}</p>
-              <p className="mt-0.5 text-xs text-violet-200/70">{f.text}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{f.text}</p>
             </li>
           ))}
         </ul>
       </div>
 
-      <p className="relative text-xs text-violet-200/60">Students, mentors, recruiters and admins sign in here.</p>
+      <p className="relative text-xs text-slate-400">Students, mentors, recruiters and admins sign in here.</p>
     </aside>
   );
 }
 
-/** On narrow screens the panel becomes a compact purple header above the form. */
+/** On narrow screens the panel becomes a compact navy header above the form. */
 function BrandHeader() {
   return (
-    <header className="relative overflow-hidden rounded-b-3xl bg-[#1e0b3d] px-6 pb-8 pt-7 md:hidden">
+    <header className="relative overflow-hidden rounded-b-3xl bg-[#0b0e19] px-6 pb-8 pt-7 md:hidden">
       <Glow className="-left-16 -top-20 size-64 bg-brand/50" />
-      <Glow className="-bottom-24 -right-16 size-64 bg-fuchsia-500/30 [animation-delay:-7s]" />
+      <Glow className="-bottom-24 -right-16 size-64 bg-sky-500/25 [animation-delay:-7s]" />
       <div className="relative">
         <Logo light />
         <p className="mt-5 text-2xl font-semibold leading-tight text-white">
           From first enquiry to{" "}
-          <span className="bg-linear-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">first job offer.</span>
+          <span className="bg-linear-to-r from-[#7c9bff] to-sky-300 bg-clip-text text-transparent">first job offer.</span>
         </p>
-        <p className="mt-2 text-sm text-violet-200/80">Leads, batches, quizzes and placements in one place.</p>
+        <p className="mt-2 text-sm text-slate-300">Leads, batches, quizzes and placements in one place.</p>
       </div>
     </header>
   );
@@ -94,12 +94,12 @@ export function AuthShell({ title, children, footer }: { title: string; children
       <BrandPanel />
       <BrandHeader />
       <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-10">
-        {/* A purple glow behind the form, so the card seems lit from behind */}
+        {/* A blue glow behind the form, so the card seems lit from behind */}
         <Glow className="left-1/2 top-1/2 size-[26rem] -translate-x-1/2 -translate-y-1/2 bg-brand/20" />
         <div className="animate-fade-up relative w-full max-w-sm">
           <div className="rounded-2xl border border-line bg-surface/90 p-7 shadow-2xl shadow-brand/15 ring-1 ring-brand/10 backdrop-blur">
             <h1 className="text-xl font-semibold">{title}</h1>
-            <div className="mb-5 mt-1 h-1 w-10 rounded-full bg-linear-to-r from-brand to-fuchsia-400" aria-hidden />
+            <div className="mb-5 mt-1 h-1 w-10 rounded-full bg-linear-to-r from-brand to-sky-400" aria-hidden />
             {children}
           </div>
           <p className="mt-5 text-center text-sm text-muted">{footer}</p>

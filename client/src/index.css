@@ -3,21 +3,26 @@
 /* Design tokens. Components use these names (bg-surface, text-muted...)
    instead of raw colours, so the whole look can change in one place. */
 @theme {
-  --font-sans: "Segoe UI", system-ui, -apple-system, "Noto Sans", "Noto Sans Devanagari", sans-serif;
+  /* Geist (bundled from @fontsource-variable/geist), with system fonts for scripts it lacks, like Hindi. */
+  --font-sans: "Geist Variable", "Segoe UI", system-ui, -apple-system, "Noto Sans", "Noto Sans Devanagari", sans-serif;
 
-  --color-canvas: #f6f5f9;
+  /* Softer corners for cards and fields (10px), as on skillrank.in. */
+  --radius-lg: 0.625rem;
+
+  /* Cool grey-blue page, white cards, slate text. */
+  --color-canvas: #eef1f5;
   --color-surface: #ffffff;
-  --color-line: #e5e2ec;
-  --color-ink: #1f1a2e;
-  --color-muted: #615a72;
-  --color-faint: #8d87a0;
+  --color-line: #e2e6ec;
+  --color-ink: #1e293b;
+  --color-muted: #475569;
+  --color-faint: #64748b;
 
-  /* Purple brand. brand-strong is for text (4.5:1+ on surface and brand-soft);
+  /* Blue brand. brand-strong is for text (4.5:1+ on surface and brand-soft);
      brand-deep is the dark end of filled buttons, under white text. */
-  --color-brand: #7c3aed;
-  --color-brand-strong: #6425d0;
-  --color-brand-deep: #6425d0;
-  --color-brand-soft: #f1eafe;
+  --color-brand: #3858e9;
+  --color-brand-strong: #2a45c9;
+  --color-brand-deep: #2a45c9;
+  --color-brand-soft: #e8edfd;
 
   --color-good: #15803d;
   --color-good-soft: #e7f6ec;
@@ -52,7 +57,7 @@
     }
   }
 
-  /* The sign-in page's purple glows drift slowly (animate-glow). */
+  /* The sign-in page's glows drift slowly (animate-glow). */
   --animate-glow: glow-drift 14s ease-in-out infinite alternate;
   @keyframes glow-drift {
     from {
@@ -67,32 +72,32 @@
 /* Chart colours, read by the dashboard as var(--chart-...). */
 :root {
   color-scheme: light;
-  --chart-1: #7c3aed;
-  --chart-1-hover: #5b21b6;
-  --chart-2: #ea6a2f;
-  --chart-2-hover: #c2541f;
-  --chart-grid: #ebe8f0;
-  --chart-axis: #615a72;
-  --chart-cursor: #f4effd;
-  --chart-label: #1f1a2e;
+  --chart-1: #3858e9;
+  --chart-1-hover: #2a45c9;
+  --chart-2: #eb6834;
+  --chart-2-hover: #c9521f;
+  --chart-grid: #e5e9ef;
+  --chart-axis: #475569;
+  --chart-cursor: #eef2fe;
+  --chart-label: #1e293b;
 }
 
-/* Dark theme (the default; see index.html). Same names, so every component follows.
+/* Dark theme: deep navy, as on skillrank.in (light is the default; see index.html). Same names, so every component follows.
    Text colours keep 4.5:1+ contrast on canvas, surface and the soft backgrounds. */
 :root[data-theme="dark"] {
   color-scheme: dark; /* native inputs, date pickers and scrollbars go dark too */
 
-  --color-canvas: #110f19;
-  --color-surface: #1a1726;
-  --color-line: #2e2a41;
-  --color-ink: #ece9f6;
-  --color-muted: #aaa3c0;
-  --color-faint: #857e9f;
+  --color-canvas: #0b0e19;
+  --color-surface: #161923;
+  --color-line: #2a2e38;
+  --color-ink: #f8fafc;
+  --color-muted: #a3aec2;
+  --color-faint: #7d889c;
 
-  --color-brand: #8b5cf6;
-  --color-brand-strong: #c4b5fd;
-  --color-brand-deep: #6d28d9;
-  --color-brand-soft: #2a2146;
+  --color-brand: #4f6cf5;
+  --color-brand-strong: #8ea6ff;
+  --color-brand-deep: #2f4bd8;
+  --color-brand-soft: #1b2240;
 
   --color-good: #4ade80;
   --color-good-soft: #10291b;
@@ -101,14 +106,14 @@
   --color-bad: #f87171;
   --color-bad-soft: #3a1619;
 
-  --chart-1: #a78bfa;
-  --chart-1-hover: #c4b5fd;
-  --chart-2: #fb923c;
-  --chart-2-hover: #fdba74;
-  --chart-grid: #2e2a41;
-  --chart-axis: #aaa3c0;
-  --chart-cursor: rgb(139 92 246 / 0.14);
-  --chart-label: #ece9f6;
+  --chart-1: #6f8bff;
+  --chart-1-hover: #8ea6ff;
+  --chart-2: #f27a45;
+  --chart-2-hover: #f59a70;
+  --chart-grid: #2a2e38;
+  --chart-axis: #a3aec2;
+  --chart-cursor: rgb(79 108 245 / 0.14);
+  --chart-label: #f8fafc;
 }
 
 html,
@@ -120,6 +125,11 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+}
+/* Tight, confident headings, as on skillrank.in. */
+h1,
+h2 {
+  letter-spacing: -0.02em;
 }
 :focus-visible {
   outline: 2px solid var(--color-brand);

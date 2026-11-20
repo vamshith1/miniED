@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%237c3aed'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>M</text></svg>" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%233858e9'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>M</text></svg>" />
     <title>MiniEdCRM</title>
     <script>
       // Apply the saved theme before the page draws, so it never flashes the wrong colours.
-      // Dark unless this device chose light. Matches src/lib/theme.ts.
+      // Light unless this device chose dark. Matches src/lib/theme.ts.
       try {
-        if (localStorage.getItem("mecrm:theme") === "light") document.documentElement.dataset.theme = "light";
+        if (localStorage.getItem("mecrm:theme") === "dark") document.documentElement.dataset.theme = "dark";
       } catch (e) {}
     </script>
   </head>

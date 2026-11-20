@@ -46,7 +46,7 @@ export async function openRazorpayCheckout(c: CheckoutInfo): Promise<CheckoutRes
       name: "MiniEdCRM",
       description: c.description,
       prefill: c.prefill,
-      theme: { color: "#7c3aed" },
+      theme: { color: "#3858e9" },
       handler: (r: RazorpayResponse) => resolve({ orderId: r.razorpay_order_id, gatewayPaymentId: r.razorpay_payment_id, signature: r.razorpay_signature }),
       modal: { ondismiss: () => resolve(null) },
     });

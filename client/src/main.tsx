@@ -6,6 +6,7 @@ import { ApiError } from "./lib/api";
 import { AuthProvider } from "./lib/auth";
 import { App } from "./App";
 import { ConfirmHost } from "./components/ui";
+import "@fontsource-variable/geist";
 import "./index.css";
 
 const queryClient = new QueryClient({

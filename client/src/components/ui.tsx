@@ -20,13 +20,13 @@ export function Button({ variant = "primary", size = "md", loading, disabled, cl
       className={cx(
         // Hover lifts the button a little and deepens its colour; pressing pushes it back down.
         // Disabled buttons stay flat so they don't look clickable.
-        "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium select-none",
+        "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full font-medium select-none",
         "transition-all duration-150 ease-out enabled:hover:-translate-y-px enabled:active:translate-y-0 enabled:active:scale-[0.97]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1",
         "disabled:cursor-not-allowed disabled:opacity-55",
-        size === "sm" ? "h-8 px-2.5 text-sm" : "h-9 px-3.5 text-sm",
+        size === "sm" ? "h-8 px-3 text-sm" : "h-9 px-4 text-sm",
         variant === "primary" &&
-          "bg-linear-to-b from-brand to-brand-deep text-white shadow-sm shadow-brand/25 enabled:hover:shadow-md enabled:hover:shadow-brand/35 enabled:hover:brightness-110",
+          "bg-brand text-white shadow-sm shadow-brand/25 enabled:hover:bg-brand-deep enabled:hover:shadow-md enabled:hover:shadow-brand/35",
         variant === "secondary" &&
           "border border-line bg-surface text-ink shadow-xs enabled:hover:border-brand/40 enabled:hover:bg-brand-soft/50 enabled:hover:text-brand-strong enabled:hover:shadow-sm",
         variant === "ghost" && "text-muted enabled:hover:bg-brand-soft/60 enabled:hover:text-brand-strong",
