@@ -381,7 +381,8 @@ export function ConfirmHost() {
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string }[]; value: T; onChange: (t: T) => void }) {
   return (
-    <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-line">
+    // overflow-y-hidden: the active tab's underline overlaps the border by 1px, which otherwise adds a vertical scrollbar.
+    <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
       {tabs.map((t) => (
         <button
           key={t.id}

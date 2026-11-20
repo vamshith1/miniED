@@ -15,7 +15,8 @@ import { BandBadge, ReadinessMeter, weightsText } from "../components/Readiness"
 export function PlacementPage() {
   const [params, setParams] = useSearchParams();
   const overview = useQuery({ queryKey: ["placement", "overview"], queryFn: () => api.get<PlacementOverview>("/placement/batches") });
-  const selected = params.get("batch") ?? overview.data?.items[0]?.id ?? null;
+  // Start on the first batch that has students (an upcoming batch is usually still empty).
+  const selected = params.get("batch") ?? (overview.data?.items.find((b) => b.students > 0) ?? overview.data?.items[0])?.id ?? null;
 
   return (
     <>
@@ -85,7 +86,8 @@ function BatchReport({ batchId }: { batchId: string }) {
               <Stat label="Need work" value={r.summary.needsWork} tone={r.summary.needsWork ? "bad" : undefined} hint="Under 50%" />
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+            {/* minmax(0, 1fr): the wide table scrolls inside its card instead of pushing the page sideways */}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
               <Card
                 title={`${r.batch.name}: students`}
                 padded={false}

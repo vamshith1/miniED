@@ -2,6 +2,9 @@
 
 A small CRM for a training institute: manage leads, convert them into students,
 run batches with attendance, and test students with timed quizzes and a leaderboard.
+It also covers placements: skill-gap reports, a placement-readiness score per student,
+tasks, batch join codes, and a hiring side where recruiters post jobs and campus drives,
+run hiring tests and interviews, and browse a talent pool of students who opt in.
 
 ## Stack
 
@@ -146,6 +149,12 @@ npm run dev
 ```
 
 Seed account emails and passwords are set in `.env.example` (`SEED_*`).
+
+To see every feature with data in it, `npm run db:demo` adds a demo institute: mentors, three courses, leads at
+every stage, students with attendance, quizzes (skills, negative marking, a practice set), tasks, payments, two
+recruiters with jobs, campus drives, applications, interviews and a hiring test. Everything it adds ends in
+`@demo.miniedcrm.test` or starts with `DEMO-`; `npm run db:demo -- --remove` takes it all out again. Locally the
+demo accounts' password is `Demo@12345!`; for any other database set `DEMO_PASSWORD` first.
 
 Then start the web app in a third terminal and open http://localhost:5173:
 
@@ -306,7 +315,18 @@ A batch the user can't access returns `404`, not `403`, so batch IDs can't be di
 | GET    | `/api/quizzes/:id/leaderboard`  | Managers + batch students | Ranked by score, then time taken (cached) |
 | GET    | `/api/batches/:id/leaderboard`  | Anyone who can see the batch | Total score across the batch's quizzes (cached) |
 
-Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options, **exactly one** correct.
+| GET    | `/api/quizzes/:id/practice`     | Student in the batch    | A practice quiz's questions and your previous goes |
+| POST   | `/api/quizzes/:id/practice`     | Student in the batch    | `{answers, timeTakenMs?}` → score, review with explanations; as often as you like |
+
+Question format: `{text, points?, skill?, explanation?, options: [{text, isCorrect}]}`. 2–6 options, **exactly one** correct.
+Quiz settings: `mode` (`TEST` or `PRACTICE`), `negativePercent` (0–100), `passPercent` (1–100 or null),
+`opensAt` / `closesAt` (optional start window). A quiz has a `batchId`, or a `jobId` for a recruiter's hiring test.
+
+**Marking**
+- Right: + the question's points. Wrong: − `negativePercent`% of them. **Skipped: 0**, so guessing can't fake a score. The total never goes below 0.
+- With a `passPercent`, results say passed or not. Each question's `explanation` is shown in the review after submitting.
+- `PRACTICE` quizzes have no server timer, any number of goes (stored as `PracticeRun`), and never reach a leaderboard.
+- Each question's `skill` feeds the skill-gap report (`/api/progress/skills`): accuracy per skill, under 50% is a gap, 75%+ a strength.
 
 **How a timed attempt works**
 1. `start` records `startedAt` on the server. The server's clock is the only one that counts, so changing the browser clock does nothing.
@@ -327,9 +347,59 @@ Question format: `{text, points?, options: [{text, isCorrect}]}`. 2–6 options,
 | GET    | `/api/progress/quizzes`     | Every finished attempt: marks, %, time, rank among classmates and class average; plus average, best and first places |
 | GET    | `/api/progress/attendance`  | Every marked day, present/late/absent counts, %, current and longest streak |
 | GET    | `/api/progress/time`        | Learning time: class time (attended days × the batch's `classMinutes`) plus measured quiz time, total and per week for 12 weeks |
+| GET    | `/api/progress/skills`      | Accuracy per skill across submitted tests, weakest first, with gaps and strengths |
 
 Batches have an optional `classMinutes` (class length per day, 15–600). Without it, class time isn't guessed: the
 time page shows the days attended and says the class length isn't set.
+
+### Tasks and join codes
+
+| Method | Path | Who | What |
+| ------ | ---- | --- | ---- |
+| GET    | `/api/tasks?batchId=` | Admin, batch mentor; students (own batch) | Managers: tasks with handed-in / to-review / accepted counts. Students: tasks with their submission |
+| POST   | `/api/tasks` | Admin, batch mentor | `{batchId, title, description?, dueAt?, maxPoints?}` |
+| PATCH / DELETE | `/api/tasks/:id` | Admin, batch mentor | Edit or delete (the maximum is locked once points are given) |
+| GET    | `/api/tasks/:id/submissions` | Admin, batch mentor | Every student with their submission (or none) |
+| PATCH  | `/api/tasks/:id/submissions/:submissionId` | Admin, batch mentor | `{status: ACCEPTED \| CHANGES_REQUESTED, points?, feedback?}` |
+| PUT    | `/api/tasks/:id/submission` | Student | `{link?, note?}` (http/https links only). Replaces the last one until it's accepted |
+| POST / DELETE | `/api/batches/:id/join-code` | Admin, batch mentor | Make a new 8-character code (the old one stops working), or turn joining by code off |
+| POST   | `/api/batches/join` | Student without a batch | `{code}`: joins that batch. Rate limited (10 per 15 min); students never see a batch's code |
+
+### Placement readiness
+
+| Method | Path | Who | What |
+| ------ | ---- | --- | ---- |
+| GET    | `/api/placement/me` | Student | Own readiness, its parts, gaps and strengths |
+| GET    | `/api/placement/batches` | Admin, mentor | Each batch: average readiness and how many are ready / almost / need work |
+| GET    | `/api/placement/batches/:id` | Admin, batch mentor | Every student, best prepared first, plus the skills most of the batch struggles with |
+| GET    | `/api/placement/batches/:id/report.csv` | Admin, batch mentor | The same as a spreadsheet (cells can't run as formulas) |
+
+**Readiness** = quiz average × 50% + attendance × 30% + tasks accepted (of those due) × 20%. A part with no data yet
+is left out and the rest are weighed up to 100%. 75%+ is *ready*, 50–75% *almost*, below 50% *needs work*. Hiring
+tests don't count: readiness is about the course.
+
+### Jobs, campus drives and the talent pool
+
+Recruiters are a fourth role, created by an admin with their `company`. They only see and manage their own jobs.
+
+| Method | Path | Who | What |
+| ------ | ---- | --- | ---- |
+| GET    | `/api/jobs` | Recruiter, Admin, Student | Recruiters: their jobs with applicants per stage. Admins: all. Students: jobs they can apply to (and ones they applied to), with `canApply` and the reason if not |
+| POST   | `/api/jobs` | Recruiter, Admin | `{title, description, company?, location?, type, salary?, skills[], minReadiness?, deadline?, batchIds[]}`. With `batchIds` it's a **campus drive** only those batches see |
+| GET / PATCH | `/api/jobs/:id` | owner, Admin (students can GET jobs open to them) | Details; `status: OPEN \| CLOSED` |
+| POST   | `/api/jobs/:id/apply` | Student | `{coverNote?}`. Needs the job open, before its deadline, for their batch, and `minReadiness` met |
+| POST   | `/api/jobs/:id/withdraw` | Student | Withdraw (apply again later while it's open) |
+| GET    | `/api/jobs/applications/mine` | Student | Own applications with interviews (the recruiter's feedback stays private) |
+| PUT    | `/api/jobs/profile-sharing` | Student | `{share}`: appear in the talent pool or not |
+| GET    | `/api/jobs/:id/applicants` | owner, Admin | Applicants with readiness, strengths, gaps, resume, hiring-test scores and interviews |
+| PATCH  | `/api/jobs/applications/:id` | owner, Admin | `{status}`: APPLIED → SHORTLISTED → INTERVIEW → OFFERED → HIRED, or REJECTED. Emails the student |
+| POST   | `/api/jobs/applications/:id/interviews` | owner, Admin | `{scheduledAt, durationMinutes?, mode, location?, notes?}`. Emails the student, moves them to INTERVIEW |
+| PATCH  | `/api/jobs/interviews/:id` | owner, Admin | `{outcome?, feedback?, scheduledAt?…}`; a new time is emailed again |
+| GET    | `/api/jobs/talent?q=&skill=&minReadiness=&batchId=` | Recruiter, Admin | Students who opted in, ranked by readiness, with their resume |
+
+- **Hiring tests** are quizzes with a `jobId`: only that job's (not withdrawn or rejected) applicants can take them,
+  `opensAt`/`closesAt` make everyone sit them together, and there is no student-visible leaderboard.
+- Recruiters can open a student's resume only if the student shares their profile or applied to one of their jobs.
 
 ### Dashboard and documents
 

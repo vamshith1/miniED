@@ -37,7 +37,7 @@ export function AppStatusBadge({ status }: { status: ApplicationStatus }) {
 export function JobFacts({ job, className }: { job: JobBase; className?: string }) {
   const past = job.deadline && new Date(job.deadline) < new Date();
   return (
-    <p className={cx("flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted", className)}>
+    <div className={cx("flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted", className)}>
       <span className="flex items-center gap-1">
         <Building2 className="size-3.5" /> {job.company}
       </span>
@@ -64,7 +64,7 @@ export function JobFacts({ job, className }: { job: JobBase; className?: string 
           <Users className="size-3.5" /> Campus drive: {job.batches.map((b) => b.name).join(", ")}
         </span>
       )}
-    </p>
+    </div>
   );
 }
 

@@ -17,7 +17,8 @@ export function RulesNote({ rules, className }: { rules: QuizRules; className?: 
     rules.passPercent != null ? `Pass mark ${rules.passPercent}%.` : null,
     rules.mode === "PRACTICE" ? "Practice: take it as often as you like; it doesn't count towards the leaderboard." : null,
   ].filter(Boolean);
-  return <p className={cx("text-sm text-muted", className)}>{parts.join(" ")}</p>;
+  // A block <span>, so it can sit inside a paragraph (like a page subtitle).
+  return <span className={cx("block text-sm text-muted", className)}>{parts.join(" ")}</span>;
 }
 
 /** The questions with their options. Answers can be cleared, to skip a question on purpose. */

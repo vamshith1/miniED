@@ -83,15 +83,18 @@ export function JobDetailPage() {
                 ) : (
                   <ul className="space-y-2">
                     {j.tests.map((t) => (
-                      <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
-                        <Link to={`/quizzes/${t.id}`} className="font-medium text-brand-strong hover:underline">
-                          {t.title}
-                        </Link>
-                        <span className="flex items-center gap-1.5 text-xs text-muted">
-                          {fmtSeconds(t.durationSeconds)}
-                          {t.opensAt && <span>· opens {fmtDateTime(t.opensAt)}</span>}
+                      <li key={t.id} className="text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <Link to={`/quizzes/${t.id}`} className="font-medium text-brand-strong hover:underline">
+                            {t.title}
+                          </Link>
                           {t.isPublished ? <Badge tone="good">Live</Badge> : <Badge>Draft</Badge>}
-                        </span>
+                        </div>
+                        <p className="text-xs text-muted">
+                          {fmtSeconds(t.durationSeconds)}
+                          {t.opensAt && ` · opens ${fmtDateTime(t.opensAt)}`}
+                          {t.closesAt && ` · closes ${fmtDateTime(t.closesAt)}`}
+                        </p>
                       </li>
                     ))}
                   </ul>

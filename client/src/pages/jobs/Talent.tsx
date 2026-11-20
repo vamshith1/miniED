@@ -25,7 +25,7 @@ export function TalentPage() {
     <>
       <PageHeader title="Talent pool" subtitle="Students who chose to share their profile with recruiters, ranked by placement readiness." />
       <Card className="mb-4">
-        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_140px_180px]">
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_180px_180px]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-faint" />
             <Input className="pl-8" placeholder="Name or email" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search by name or email" />

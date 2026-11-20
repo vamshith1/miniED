@@ -5,7 +5,7 @@ import { ArrowLeft, RotateCcw, Dumbbell } from "lucide-react";
 import { api } from "../../lib/api";
 import { fmtDateTime, fmtDuration, fmtPct } from "../../lib/format";
 import type { PracticeRun, PracticeSession, QuizResult } from "../../lib/types";
-import { Badge, Button, Card, ErrorBox, PageHeader, QueryState, Table, Td, Th, askConfirm } from "../../components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, QueryState, askConfirm } from "../../components/ui";
 import { AnswerReview, QuestionList, ResultStats, RulesNote, fmtScore } from "../../components/Quiz";
 
 /**
@@ -114,26 +114,22 @@ function RunHistory({ runs }: { runs: PracticeRun[] }) {
       {runs.length === 0 ? (
         <p className="px-4 py-3 text-sm text-muted">Your first go shows up here. Practice as often as you like.</p>
       ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>When</Th>
-              <Th className="text-right">Score</Th>
-              <Th className="text-right">Time</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => (
-              <tr key={r.id}>
-                <Td className="text-muted">{fmtDateTime(r.createdAt)}</Td>
-                <Td className="text-right tabular-nums">
-                  {fmtScore(r.score)}/{r.maxScore} <span className="text-xs text-muted">({fmtPct(r.maxScore ? (r.score / r.maxScore) * 100 : 0)})</span>
-                </Td>
-                <Td className="text-right tabular-nums text-muted">{fmtDuration(r.timeTakenMs)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <ul className="divide-y divide-line">
+          {runs.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+              <span className="min-w-0">
+                <span className="block text-muted">{fmtDateTime(r.createdAt)}</span>
+                <span className="text-xs text-faint">
+                  {r.correct} right · {r.wrong} wrong · {r.skipped} skipped · {fmtDuration(r.timeTakenMs)}
+                </span>
+              </span>
+              <span className="shrink-0 text-right font-semibold tabular-nums">
+                {fmtScore(r.score)}/{r.maxScore}
+                <span className="block text-xs font-normal text-muted">{fmtPct(r.maxScore ? (r.score / r.maxScore) * 100 : 0)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );
