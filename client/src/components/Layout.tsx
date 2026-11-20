@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
-import { BookOpen, CalendarCheck, ClipboardList, CircleUser, FileText, Gauge, GraduationCap, Home, Hourglass, IndianRupee, LogOut, Mail, Menu, Moon, PenLine, Sun, Users, UserRoundSearch, Wallet, X } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardList, Rocket, CircleUser, FileText, Gauge, GraduationCap, Home, Hourglass, IndianRupee, LogOut, Mail, Menu, Moon, PenLine, Sun, Users, UserRoundSearch, Wallet, X } from "lucide-react";
 import { usePaymentConfig } from "./Payments";
 import { useAuth, useUser } from "../lib/auth";
 import type { Role } from "../lib/types";
@@ -14,12 +14,14 @@ const NAV: Record<Role, { to: string; label: string; icon: ReactNode; payments?:
     { to: "/dashboard", label: "Dashboard", icon: <Gauge className="size-4" /> },
     { to: "/leads", label: "Leads", icon: <UserRoundSearch className="size-4" /> },
     { to: "/batches", label: "Batches", icon: <GraduationCap className="size-4" /> },
+    { to: "/placement", label: "Placement", icon: <Rocket className="size-4" /> },
     { to: "/users", label: "Users", icon: <Users className="size-4" /> },
     { to: "/payments", label: "Payments", icon: <IndianRupee className="size-4" />, payments: true },
     { to: "/emails", label: "Emails", icon: <Mail className="size-4" /> },
   ],
   MENTOR: [
     { to: "/batches", label: "My batches", icon: <GraduationCap className="size-4" /> },
+    { to: "/placement", label: "Placement", icon: <Rocket className="size-4" /> },
     { to: "/documents", label: "My documents", icon: <FileText className="size-4" /> },
   ],
   STUDENT: [

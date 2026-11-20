@@ -492,3 +492,46 @@ export interface TaskSubmissions {
   task: TaskBase;
   items: { student: UserBrief; submission: Submission | null }[];
 }
+
+// ---------- Placement readiness (/api/placement)
+
+export type ReadinessBand = "READY" | "ALMOST" | "NEEDS_WORK";
+
+export interface Readiness {
+  readiness: number | null; // 0–100, null with no data yet
+  band: ReadinessBand | null;
+  quizAverage: number | null;
+  quizzesTaken: number;
+  attendance: number | null;
+  daysMarked: number;
+  tasksDue: number;
+  tasksAccepted: number;
+  taskCompletion: number | null;
+  gaps: string[];
+  strengths: string[];
+}
+
+export interface ReadinessWeights {
+  quizzes: number;
+  attendance: number;
+  tasks: number;
+}
+
+export interface BatchPlacement {
+  batch: { id: string; name: string; course: string };
+  weights: ReadinessWeights;
+  summary: {
+    students: number;
+    scored: number;
+    averageReadiness: number | null;
+    ready: number;
+    almost: number;
+    needsWork: number;
+    topGaps: { skill: string; students: number }[];
+  };
+  items: (Readiness & { student: UserBrief & { isActive: boolean } })[];
+}
+
+export interface PlacementOverview {
+  items: { id: string; name: string; course: string; students: number; averageReadiness: number | null; ready: number; almost: number; needsWork: number }[];
+}

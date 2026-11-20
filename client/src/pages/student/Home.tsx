@@ -9,6 +9,7 @@ import { Badge, Button, Card, EmptyState, PageHeader, QueryState, Stat, cx } fro
 import { BatchLeaderboardTable } from "../../components/Leaderboards";
 import { fmtScore } from "../../components/Quiz";
 import { JoinBatchCard } from "./JoinBatch";
+import { MyReadinessCard } from "./MyReadiness";
 
 const dot: Record<string, string> = { PRESENT: "bg-good", LATE: "bg-warn", ABSENT: "bg-bad" };
 
@@ -76,6 +77,8 @@ export function StudentHomePage() {
         />
         </Link>
       </div>
+
+      <MyReadinessCard />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <Card title="Quizzes" padded={false}>

@@ -167,31 +167,3 @@ export async function submit(taskId: string, input: z.infer<typeof submitSchema>
     update: { link: data.link, note: data.note, status: "SUBMITTED", submittedAt: data.submittedAt, points: null, reviewedAt: null },
   });
 }
-
-// ---------- Used by the placement report
-
-/** Per student: tasks set in their batch, handed in, accepted, and points. */
-export async function taskStatsFor(batchId: string, studentIds: string[]) {
-  const [tasks, subs] = await Promise.all([
-    prisma.task.findMany({ where: { batchId }, select: { id: true, maxPoints: true, dueAt: true } }),
-    prisma.taskSubmission.findMany({ where: { task: { batchId }, studentId: { in: studentIds } }, select: { studentId: true, status: true, submittedAt: true, task: { select: { dueAt: true } } } }),
-  ]);
-  const now = new Date();
-  // Only tasks that are due (or have no due date) count against a student.
-  const due = tasks.filter((t) => !t.dueAt || t.dueAt <= now).length;
-  return new Map(
-    studentIds.map((id) => {
-      const mine = subs.filter((s) => s.studentId === id);
-      return [
-        id,
-        {
-          set: tasks.length,
-          due,
-          submitted: mine.length,
-          accepted: mine.filter((s) => s.status === "ACCEPTED").length,
-          late: mine.filter((s) => isLate(s.submittedAt, s.task.dueAt)).length,
-        },
-      ];
-    }),
-  );
-}
