@@ -51,6 +51,17 @@
       transform: translateX(-100%);
     }
   }
+
+  /* The sign-in page's purple glows drift slowly (animate-glow). */
+  --animate-glow: glow-drift 14s ease-in-out infinite alternate;
+  @keyframes glow-drift {
+    from {
+      transform: translate(0, 0) scale(1);
+    }
+    to {
+      transform: translate(6%, -8%) scale(1.15);
+    }
+  }
 }
 
 /* Chart colours, read by the dashboard as var(--chart-...). */
