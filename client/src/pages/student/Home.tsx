@@ -8,6 +8,7 @@ import type { Batch, MyAttendance, StudentQuiz } from "../../lib/types";
 import { Badge, Button, Card, EmptyState, PageHeader, QueryState, Stat, cx } from "../../components/ui";
 import { BatchLeaderboardTable } from "../../components/Leaderboards";
 import { fmtScore } from "../../components/Quiz";
+import { JoinBatchCard } from "./JoinBatch";
 
 const dot: Record<string, string> = { PRESENT: "bg-good", LATE: "bg-warn", ABSENT: "bg-bad" };
 
@@ -36,6 +37,7 @@ export function StudentHomePage() {
             .
           </EmptyState>
         </Card>
+        <JoinBatchCard />
       </>
     );
   }

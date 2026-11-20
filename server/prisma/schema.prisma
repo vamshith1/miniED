@@ -49,6 +49,9 @@ model User {
   quizzesCreated   Quiz[]
   quizAttempts     QuizAttempt[]
   practiceRuns     PracticeRun[]
+  tasksCreated     Task[]               @relation("TaskCreator")
+  taskSubmissions  TaskSubmission[]     @relation("TaskSubmitter")
+  taskReviews      TaskSubmission[]     @relation("TaskReviewer")
   documents        Document[]
   passwordResets   PasswordResetToken[]
   paymentsCreated  Payment[]            @relation("PaymentCreator")
@@ -168,6 +171,8 @@ model Batch {
   // How long one class day is, in minutes. Turns attended days into learning time.
   // Null = not set, so the time-spent page shows days rather than guessing hours.
   classMinutes Int?
+  // Students who sign up themselves can join with this code. Null = joining by code is off.
+  joinCode     String?   @unique
   createdAt    DateTime  @default(now())
 
   mentorId String?
@@ -177,6 +182,7 @@ model Batch {
   attendance Attendance[]
   quizzes    Quiz[]
   payments   Payment[]
+  tasks      Task[]
 
   @@index([mentorId])
 }
@@ -334,6 +340,56 @@ model PracticeRun {
 
   @@index([studentId, createdAt])
   @@index([quizId, studentId])
+}
+
+// ─────────────────────────────── Tasks ───────────────────────────────────────
+
+// Work a mentor sets a batch: an assignment, a mini project, a reading.
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  dueAt       DateTime?
+  maxPoints   Int? // null = not graded, just reviewed
+  createdAt   DateTime  @default(now())
+
+  batchId     String
+  batch       Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User   @relation("TaskCreator", fields: [createdById], references: [id])
+
+  submissions TaskSubmission[]
+
+  @@index([batchId, dueAt])
+}
+
+enum SubmissionStatus {
+  SUBMITTED // waiting for the mentor
+  CHANGES_REQUESTED // the mentor sent it back; the student can resubmit
+  ACCEPTED // done
+}
+
+// A student's work on a task: a link (GitHub, Drive…) and/or a note. One per student per task;
+// resubmitting replaces it.
+model TaskSubmission {
+  id          String           @id @default(cuid())
+  link        String?
+  note        String?
+  status      SubmissionStatus @default(SUBMITTED)
+  points      Int?
+  feedback    String?
+  submittedAt DateTime         @default(now())
+  reviewedAt  DateTime?
+
+  taskId       String
+  task         Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User    @relation("TaskSubmitter", fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedById String?
+  reviewedBy   User?   @relation("TaskReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, studentId])
+  @@index([studentId])
 }
 
 // ─────────────────────────────── Files ───────────────────────────────────────

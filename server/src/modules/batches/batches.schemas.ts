@@ -27,3 +27,5 @@ export const updateBatchSchema = z
   .refine(endAfterStart, { message: "endDate must be on or after startDate", path: ["endDate"] });
 
 export const addStudentSchema = z.object({ studentId: z.string().min(1) });
+
+export const joinBatchSchema = z.object({ code: z.string().trim().min(4).max(20) });

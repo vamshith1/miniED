@@ -73,6 +73,7 @@ export interface Batch {
   endDate: string | null;
   feePaise: number | null; // course fee in paise (₹1 = 100); null = no fee
   classMinutes: number | null; // length of one class day; null = not set
+  joinCode: string | null; // for students to join by themselves; null = off (always null for students)
   mentorId: string | null;
   mentor: UserBrief | null;
   _count: { students: number };
@@ -444,4 +445,50 @@ export interface SkillReport {
   skills: SkillRow[]; // weakest first
   gaps: string[];
   strengths: string[];
+}
+
+// ---------- Tasks (/api/tasks)
+
+export type SubmissionStatus = "SUBMITTED" | "CHANGES_REQUESTED" | "ACCEPTED";
+
+export interface TaskBase {
+  id: string;
+  title: string;
+  description: string | null;
+  dueAt: string | null;
+  maxPoints: number | null; // null = reviewed, not graded
+  createdAt: string;
+  batchId: string;
+}
+
+export interface Submission {
+  id: string;
+  link: string | null;
+  note: string | null;
+  status: SubmissionStatus;
+  points: number | null;
+  feedback: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  late: boolean;
+  reviewedBy: { name: string } | null;
+}
+
+/** A task as its mentor sees it, with how the batch is doing. */
+export interface ManagedTask extends TaskBase {
+  createdBy: { name: string };
+  students: number;
+  submitted: number;
+  toReview: number;
+  accepted: number;
+}
+
+/** A task as a student sees it. */
+export interface StudentTask extends TaskBase {
+  mySubmission: Submission | null;
+}
+
+export interface TaskSubmissions {
+  task: TaskBase;
+  items: { student: UserBrief; submission: Submission | null }[];
 }

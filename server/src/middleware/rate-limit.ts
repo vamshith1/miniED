@@ -100,6 +100,8 @@ export const limits = {
   passwordReset: rateLimit({ name: "password-reset", windowMs: 60 * MIN, max: 10 }),
   changePassword: rateLimit({ name: "change-password", windowMs: 15 * MIN, max: 10, key: (req) => req.user?.id ?? req.ip ?? "" }),
   upload: rateLimit({ name: "upload", windowMs: 60 * MIN, max: 30, key: (req) => req.user?.id ?? req.ip ?? "" }),
+  // Joining a batch by code, per user: stops anyone guessing codes.
+  joinBatch: rateLimit({ name: "join-batch", windowMs: 15 * MIN, max: 10, key: (req) => req.user?.id ?? req.ip ?? "", message: "Too many tries. Check the code with your institute and try again in 15 minutes." }),
   csvImport: rateLimit({ name: "csv-import", windowMs: 60 * MIN, max: 20, key: (req) => req.user?.id ?? req.ip ?? "" }),
   // Creating payment orders, per admin: each one is a call to the gateway.
   paymentOrder: rateLimit({ name: "payment-order", windowMs: 60 * MIN, max: 60, key: (req) => req.user?.id ?? req.ip ?? "" }),

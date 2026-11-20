@@ -6,6 +6,8 @@ import { param } from "../../lib/params.js";
 import { batchAttendanceRouter } from "../attendance/attendance.routes.js";
 import { getBatchLeaderboard } from "../quizzes/leaderboard.js";
 import { sendCached } from "../quizzes/quizzes.routes.js";
+import { limits } from "../../middleware/rate-limit.js";
+import { joinBatchSchema } from "./batches.schemas.js";
 
 export const batchesRouter = Router();
 batchesRouter.use(requireAuth);
@@ -13,6 +15,11 @@ batchesRouter.use(requireAuth);
 // Admin: all batches. Mentor: batches they run. Student: their own batch.
 batchesRouter.get("/", async (req, res) => {
   res.json({ items: await batches.listBatchesForUser(req.user!) });
+});
+
+// A student without a batch joins one with the code the institute gave them.
+batchesRouter.post("/join", requireRole("STUDENT"), limits.joinBatch, async (req, res) => {
+  res.json(await batches.joinWithCode(joinBatchSchema.parse(req.body).code, req.user!));
 });
 
 batchesRouter.post("/", requireRole("ADMIN"), async (req, res) => {
@@ -41,6 +48,15 @@ batchesRouter.post("/:id/students", requireRole("ADMIN"), async (req, res) => {
 batchesRouter.delete("/:id/students/:studentId", requireRole("ADMIN"), async (req, res) => {
   await batches.removeStudent(param(req, "id"), param(req, "studentId"));
   res.status(204).end();
+});
+
+// Join code: POST makes a new one (the old one stops working), DELETE turns joining by code off.
+batchesRouter.post("/:id/join-code", requireRole("ADMIN", "MENTOR"), async (req, res) => {
+  res.json({ batch: await batches.setJoinCode(param(req, "id"), req.user!, true) });
+});
+
+batchesRouter.delete("/:id/join-code", requireRole("ADMIN", "MENTOR"), async (req, res) => {
+  res.json({ batch: await batches.setJoinCode(param(req, "id"), req.user!, false) });
 });
 
 // Total quiz scores across the batch. Anyone who can see the batch can see this.

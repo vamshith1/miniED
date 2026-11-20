@@ -9,8 +9,9 @@ import type { AttendanceDay, AttendanceStatus, Batch, BatchAttendanceSummary, Do
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, QueryState, Select, Spinner, Table, Tabs, Td, Th, cx, askConfirm } from "../components/ui";
 import { BatchLeaderboardTable } from "../components/Leaderboards";
 import { BatchFormModal, batchStatus } from "./Batches";
+import { JoinCodeCard, TasksTab } from "./BatchTasks";
 
-type Tab = "students" | "attendance" | "quizzes" | "leaderboard";
+type Tab = "students" | "attendance" | "quizzes" | "tasks" | "leaderboard";
 
 export function BatchDetailPage() {
   const { id } = useParams() as { id: string };
@@ -50,10 +51,17 @@ export function BatchDetailPage() {
                 { id: "students", label: `Students (${b._count.students})` },
                 { id: "attendance", label: "Attendance" },
                 { id: "quizzes", label: "Quizzes" },
+                { id: "tasks", label: "Tasks" },
                 { id: "leaderboard", label: "Leaderboard" },
               ]}
             />
-            {tab === "students" && <StudentsTab batch={b} />}
+            {tab === "students" && (
+              <>
+                <JoinCodeCard batch={b} />
+                <StudentsTab batch={b} />
+              </>
+            )}
+            {tab === "tasks" && <TasksTab batch={b} />}
             {tab === "attendance" && <AttendanceTab batch={b} />}
             {tab === "quizzes" && <QuizzesTab batch={b} />}
             {tab === "leaderboard" && (
